@@ -6,12 +6,16 @@
 //! testable outside Tauri.
 
 mod commands;
+mod state;
+
+pub use state::{AppState, TranscriptEntry};
 
 /// Build the Tauri app and run it. Called from `main.rs` (desktop) and from
 /// mobile entry points (if/when added).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(AppState::new())
         .setup(|_app| {
             tracing_subscriber::fmt()
                 .with_max_level(tracing::Level::INFO)
@@ -37,6 +41,8 @@ pub fn run() {
             commands::content_summary,
             commands::content_chapters,
             commands::content_translate,
+            commands::get_cached_transcript,
+            commands::clear_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -12,68 +12,56 @@
         <h1 class="app-title">CreatorUtils</h1>
         <span id="app-version" class="app-version">…</span>
       </header>
+
+      <section class="source-picker">
+        <label class="source-label" for="source-path">Source video</label>
+        <input id="source-path" type="text" placeholder="/absolute/path/to/video.mp4" />
+        <div class="source-meta" id="source-meta">no file selected</div>
+        <button id="btn-source-clear" class="ghost small">Clear cache</button>
+      </section>
+
       <nav class="feature-list" role="tablist">
-        <button class="feature-item active" data-feature="autocut" role="tab">
-          AutoCut
-        </button>
-        <button class="feature-item" data-feature="transcribe" role="tab">
-          Transcribe
-        </button>
-        <button class="feature-item" data-feature="summary" role="tab">
-          Summary &amp; Chapters
-        </button>
-        <button class="feature-item" data-feature="export" role="tab">
-          NLE Export
-        </button>
-        <button class="feature-item" data-feature="settings" role="tab">
-          Settings
-        </button>
+        <button class="feature-item active" data-feature="autocut" role="tab">AutoCut</button>
+        <button class="feature-item" data-feature="transcribe" role="tab">Transcribe</button>
+        <button class="feature-item" data-feature="translate" role="tab">Translate</button>
+        <button class="feature-item" data-feature="summary" role="tab">Summary</button>
+        <button class="feature-item" data-feature="chapters" role="tab">Chapters</button>
+        <button class="feature-item" data-feature="export" role="tab">Export</button>
+        <button class="feature-item" data-feature="settings" role="tab">Settings</button>
       </nav>
+
       <footer class="sidebar-footer" id="platform-info">…</footer>
     </aside>
 
     <main id="detail" aria-live="polite">
-      <!-- AutoCut view -->
+      <!-- ───────── AutoCut view ───────── -->
       <section class="feature-view active" data-view="autocut">
         <h2>AutoCut — Silence Detection</h2>
         <p class="hint">
-          Pick a video, tune the silence detector, and inspect the regions
-          the DSP pipeline found. Runs fully offline — no AI required.
+          Runs fully offline. First detect extracts PCM + caches it; slider
+          tweaks re-run detection against the cached buffer instantly.
         </p>
-
-        <div class="field-row">
-          <label for="autocut-path">Source file</label>
-          <input id="autocut-path" type="text" placeholder="/absolute/path/to/video.mov" />
-        </div>
 
         <fieldset class="config-grid">
           <legend>Silence config</legend>
-          <label>
-            <span>Auto threshold</span>
-            <input type="checkbox" id="cfg-auto" checked />
-          </label>
-          <label>
-            <span>Manual threshold</span>
+          <label><span>Auto threshold</span><input type="checkbox" id="cfg-auto" checked /></label>
+          <label><span>Manual threshold</span>
             <input type="range" id="cfg-threshold" min="0.005" max="0.2" step="0.005" value="0.03" />
             <output id="cfg-threshold-val">0.030</output>
           </label>
-          <label>
-            <span>Min duration (s)</span>
+          <label><span>Min duration (s)</span>
             <input type="range" id="cfg-min-duration" min="0.1" max="2.0" step="0.1" value="0.5" />
             <output id="cfg-min-duration-val">0.5</output>
           </label>
-          <label>
-            <span>Padding left (s)</span>
+          <label><span>Padding left (s)</span>
             <input type="range" id="cfg-pad-left" min="0" max="1" step="0.05" value="0.1" />
             <output id="cfg-pad-left-val">0.10</output>
           </label>
-          <label>
-            <span>Padding right (s)</span>
+          <label><span>Padding right (s)</span>
             <input type="range" id="cfg-pad-right" min="0" max="1" step="0.05" value="0.1" />
             <output id="cfg-pad-right-val">0.10</output>
           </label>
-          <label>
-            <span>Remove spikes (s)</span>
+          <label><span>Remove spikes (s)</span>
             <input type="range" id="cfg-spike" min="0" max="1" step="0.05" value="0.2" />
             <output id="cfg-spike-val">0.20</output>
           </label>
@@ -87,37 +75,154 @@
         <div id="silence-results" class="results"></div>
       </section>
 
-      <!-- Transcribe view -->
+      <!-- ───────── Transcribe view ───────── -->
       <section class="feature-view" data-view="transcribe">
         <h2>Transcribe</h2>
         <p class="hint">
-          Whisper transcription pipeline lands in the next milestone
-          (needs <code>cmake</code> to build <code>whisper-rs</code>).
-          The media pipeline + word-timestamp models are ready.
+          MLX whisper (Apple Silicon). Result cached by source path — other
+          tabs (Translate / Summary / Chapters) reuse it automatically.
         </p>
+
+        <div class="field-row">
+          <label for="transcribe-model">Model</label>
+          <input id="transcribe-model" type="text" value="mlx-community/whisper-large-v3-turbo" />
+        </div>
+        <div class="field-row">
+          <label for="transcribe-lang">Language hint</label>
+          <input id="transcribe-lang" type="text" placeholder="auto (blank) or e.g. en, vi, ja" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-transcribe" class="primary">Transcribe</button>
+          <button id="btn-transcribe-refresh" class="ghost">Force re-run</button>
+          <span id="transcribe-status" class="status">ready</span>
+        </div>
+
+        <div id="transcribe-results" class="results"></div>
       </section>
 
-      <!-- Summary view -->
+      <!-- ───────── Translate view ───────── -->
+      <section class="feature-view" data-view="translate">
+        <h2>Translate</h2>
+        <p class="hint">
+          Uses the cached transcript. If the source language is already the
+          target (default Vietnamese), the call is skipped and originals
+          are returned unchanged.
+        </p>
+
+        <div class="field-row">
+          <label for="translate-provider">Provider</label>
+          <select id="translate-provider">
+            <option value="mlx" selected>MLX (local)</option>
+            <option value="claude">Claude</option>
+            <option value="openAi">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="ollama">Ollama</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="translate-model">Model</label>
+          <input id="translate-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" />
+        </div>
+        <div class="field-row">
+          <label for="translate-target">Target language</label>
+          <input id="translate-target" type="text" value="vi" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-translate" class="primary">Translate</button>
+          <span id="translate-status" class="status">ready</span>
+        </div>
+
+        <div id="translate-results" class="results"></div>
+      </section>
+
+      <!-- ───────── Summary view ───────── -->
       <section class="feature-view" data-view="summary">
-        <h2>Summary &amp; Chapters</h2>
-        <p class="hint">
-          Brief summaries, key points, action items, and YouTube chapters
-          — all powered by the configured AI provider. Wire a transcript
-          in the Transcribe tab first, then run this view.
-        </p>
+        <h2>Summary</h2>
+        <p class="hint">Brief narrative, key points, or action items from the cached transcript.</p>
+
+        <div class="field-row">
+          <label for="summary-provider">Provider</label>
+          <select id="summary-provider">
+            <option value="mlx" selected>MLX (local)</option>
+            <option value="claude">Claude</option>
+            <option value="openAi">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="ollama">Ollama</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="summary-model">Model</label>
+          <input id="summary-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" />
+        </div>
+        <div class="field-row">
+          <label for="summary-style">Style</label>
+          <select id="summary-style">
+            <option value="brief" selected>Brief narrative</option>
+            <option value="keyPoints">Key points</option>
+            <option value="actionItems">Action items</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="summary-language">Output language</label>
+          <input id="summary-language" type="text" value="Vietnamese" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-summary" class="primary">Run summary</button>
+          <span id="summary-status" class="status">ready</span>
+        </div>
+
+        <div id="summary-results" class="results"></div>
       </section>
 
-      <!-- Export view -->
+      <!-- ───────── Chapters view ───────── -->
+      <section class="feature-view" data-view="chapters">
+        <h2>Chapters</h2>
+        <p class="hint">
+          YouTube-ready chapter markers. First chapter is always pinned to
+          <code>00:00</code>.
+        </p>
+
+        <div class="field-row">
+          <label for="chapters-provider">Provider</label>
+          <select id="chapters-provider">
+            <option value="mlx" selected>MLX (local)</option>
+            <option value="claude">Claude</option>
+            <option value="openAi">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="ollama">Ollama</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="chapters-model">Model</label>
+          <input id="chapters-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" />
+        </div>
+        <div class="field-row">
+          <label for="chapters-language">Output language</label>
+          <input id="chapters-language" type="text" value="Vietnamese" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-chapters" class="primary">Generate chapters</button>
+          <button id="btn-chapters-copy" class="ghost">Copy YouTube format</button>
+          <span id="chapters-status" class="status">ready</span>
+        </div>
+
+        <div id="chapters-results" class="results"></div>
+      </section>
+
+      <!-- ───────── Export view ───────── -->
       <section class="feature-view" data-view="export">
-        <h2>NLE Export</h2>
+        <h2>Export</h2>
         <p class="hint">
-          Export your cut to Final Cut Pro (FCPXML 1.11) or
-          Premiere / DaVinci Resolve (xmeml v5). Both are non-destructive
-          — the timeline references your source media.
+          Direct video export (ffmpeg cut+concat) and NLE project files
+          (FCPXML / xmeml) land in Milestone B.
         </p>
       </section>
 
-      <!-- Settings view -->
+      <!-- ───────── Settings view ───────── -->
       <section class="feature-view" data-view="settings">
         <h2>Settings</h2>
         <p class="hint">Store API keys in the OS keyring — never in plain text.</p>

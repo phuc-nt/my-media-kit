@@ -1,4 +1,15 @@
-// AutoCut view — wire sliders to the detect_silence_in_file command.
+// AutoCut view — silence detection. Reads the shared source path from
+// source-store; backend cache keeps slider tweaks fast after the first
+// run.
+
+import { getSource, subscribe } from "../source-store.js";
+import {
+  escapeHtml,
+  formatMs,
+  renderErrorBox,
+  requireSource,
+  setStatus,
+} from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -14,32 +25,22 @@ function readConfig() {
   return {
     threshold: parseFloat(document.getElementById("cfg-threshold").value),
     useAutoThreshold: document.getElementById("cfg-auto").checked,
-    minimumDurationS: parseFloat(
-      document.getElementById("cfg-min-duration").value,
-    ),
+    minimumDurationS: parseFloat(document.getElementById("cfg-min-duration").value),
     paddingLeftS: parseFloat(document.getElementById("cfg-pad-left").value),
     paddingRightS: parseFloat(document.getElementById("cfg-pad-right").value),
     removeShortSpikesS: parseFloat(document.getElementById("cfg-spike").value),
   };
 }
 
-function formatMs(ms) {
-  const s = ms / 1000;
-  const mm = Math.floor(s / 60);
-  const ss = (s - mm * 60).toFixed(2);
-  return `${mm}:${ss.padStart(5, "0")}`;
-}
-
-function renderResults(regions, frameCount) {
-  const container = document.getElementById("silence-results");
+function renderResults(regions, frameCount, fromCache, container) {
   if (!regions.length) {
-    container.innerHTML = `<p class="hint">No silence regions detected (${frameCount} frames analyzed).</p>`;
+    container.innerHTML = `<p class="hint">No silence regions detected (${frameCount} frames, ${fromCache ? "cached" : "fresh"}).</p>`;
     return;
   }
   const rows = regions
     .map(
       (r, i) =>
-        `<tr><td>${i + 1}</td><td>${formatMs(r.startMs)}</td><td>${formatMs(r.endMs)}</td><td>${((r.endMs - r.startMs) / 1000).toFixed(2)}s</td></tr>`,
+        `<tr><td>${i + 1}</td><td>${formatMs(r.start_ms)}</td><td>${formatMs(r.end_ms)}</td><td>${((r.end_ms - r.start_ms) / 1000).toFixed(2)}s</td></tr>`,
     )
     .join("");
   container.innerHTML = `
@@ -48,7 +49,7 @@ function renderResults(regions, frameCount) {
       <tbody>${rows}</tbody>
     </table>
     <p class="hint" style="margin-top:8px">
-      ${regions.length} region${regions.length > 1 ? "s" : ""} · ${frameCount} frames analyzed
+      ${regions.length} region${regions.length > 1 ? "s" : ""} · ${frameCount} frames · ${fromCache ? "cached PCM" : "fresh extract"}
     </p>
   `;
 }
@@ -65,25 +66,35 @@ export function initAutoCutView() {
 
   const btn = document.getElementById("btn-detect");
   const status = document.getElementById("detect-status");
+  const container = document.getElementById("silence-results");
+
   btn.addEventListener("click", async () => {
-    const path = document.getElementById("autocut-path").value.trim();
-    if (!path) {
-      status.textContent = "pick a file first";
-      status.className = "status err";
-      return;
-    }
-    status.textContent = "detecting…";
-    status.className = "status";
+    const source = getSource();
+    if (!requireSource(source, status)) return;
+    setStatus(status, "detecting…");
     try {
       const config = readConfig();
-      const result = await invoke("detect_silence_in_file", { path, config });
-      renderResults(result.regions, result.frameCount);
-      status.textContent = `${result.regions.length} regions found`;
-      status.className = "status ok";
+      const result = await invoke("detect_silence_in_file", {
+        path: source.path,
+        config,
+      });
+      renderResults(
+        result.regions,
+        result.frameCount ?? result.frame_count ?? 0,
+        !!(result.fromCache ?? result.from_cache),
+        container,
+      );
+      setStatus(status, `${result.regions.length} regions`, "ok");
     } catch (err) {
       console.error(err);
-      status.textContent = String(err).slice(0, 120);
-      status.className = "status err";
+      renderErrorBox(container, String(err));
+      setStatus(status, "failed", "err");
+    }
+  });
+
+  subscribe((state) => {
+    if (!state.path) {
+      container.innerHTML = `<p class="hint">pick a source video in the sidebar</p>`;
     }
   });
 }

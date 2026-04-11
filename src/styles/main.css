@@ -298,3 +298,61 @@ button.ghost:hover {
   color: var(--text-dim);
   margin-top: 4px;
 }
+
+.source-picker {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.source-picker input[type="text"] {
+  padding: 7px 10px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 12px;
+}
+
+.source-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+button.ghost.small {
+  padding: 4px 10px;
+  font-size: 11px;
+  align-self: flex-start;
+}
+
+pre.summary-text {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  margin-top: 10px;
+}
+
+.results td.ts {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  width: 64px;
+}
