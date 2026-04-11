@@ -1,0 +1,18 @@
+[package]
+name = "ai-kit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LLM provider abstractions: Claude, OpenAI, Gemini, Ollama (+ MLX/AppleIntel gated)"
+
+[dependencies]
+creator-core = { path = "../creator-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { workspace = true }
+futures-util = { workspace = true }
+async-trait = "0.1"
+tokio = { workspace = true }
+keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
+tracing = { workspace = true }

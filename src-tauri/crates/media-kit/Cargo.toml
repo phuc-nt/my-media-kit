@@ -1,0 +1,13 @@
+[package]
+name = "media-kit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cross-platform media I/O: ffmpeg sidecar orchestration for audio extraction, cut+concat, encoding"
+
+[dependencies]
+creator-core = { path = "../creator-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

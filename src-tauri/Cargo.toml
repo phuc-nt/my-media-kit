@@ -1,0 +1,83 @@
+[workspace]
+resolver = "2"
+members = [
+    ".",
+    "crates/creator-core",
+    "crates/silence-kit",
+    "crates/nle-kit",
+    "crates/ai-kit",
+    "crates/media-kit",
+    "crates/transcription-kit",
+    "crates/content-kit",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["phucnt"]
+license = "MIT"
+rust-version = "1.80"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing = "0.1"
+
+# Per-crate deps re-exported for workspace version alignment
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+futures-util = "0.3"
+quick-xml = { version = "0.37", features = ["serialize"] }
+
+# App-level only
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+
+[package]
+name = "creator-utils"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Cross-platform creator video utilities: transcription, silence detection, auto-cut, AI summaries, NLE export"
+
+[lib]
+name = "creator_utils_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+creator-core = { path = "crates/creator-core" }
+silence-kit = { path = "crates/silence-kit" }
+
+[dependencies]
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Monorepo crates
+creator-core = { path = "crates/creator-core" }
+silence-kit = { path = "crates/silence-kit" }
+nle-kit = { path = "crates/nle-kit" }
+ai-kit = { path = "crates/ai-kit" }
+media-kit = { path = "crates/media-kit" }
+transcription-kit = { path = "crates/transcription-kit" }
+content-kit = { path = "crates/content-kit" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

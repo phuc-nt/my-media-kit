@@ -1,0 +1,19 @@
+[package]
+name = "content-kit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Content detection + analysis pipelines: filler, AI-prompt, summary, chapters"
+
+[dependencies]
+creator-core = { path = "../creator-core" }
+ai-kit = { path = "../ai-kit" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = "0.1"
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+ai-kit = { path = "../ai-kit" }

@@ -1,0 +1,15 @@
+[package]
+name = "silence-kit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "DSP-based silence detection (RMS, auto-threshold, region building)"
+
+[dependencies]
+creator-core = { path = "../creator-core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+media-kit = { path = "../media-kit" }
+tokio = { workspace = true }

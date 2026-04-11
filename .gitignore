@@ -1,0 +1,77 @@
+# ── Research / reverse-engineering (NOT checked in) ─────────────────────────
+# Derived from v1 app binary; kept local-only.
+_research/
+docs/reverse-engineering/
+
+# ── Large test media ─────────────────────────────────────────────────────────
+test-input/
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.m4v
+*.wav
+*.mp3
+*.flac
+
+# ── Rust / Cargo ─────────────────────────────────────────────────────────────
+src-tauri/target/
+src-tauri/gen/schemas/
+**/*.rs.bk
+Cargo.lock
+
+# ── Node ─────────────────────────────────────────────────────────────────────
+node_modules/
+dist/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# ── Tauri build output ───────────────────────────────────────────────────────
+src-tauri/Cargo.lock
+
+# ── OS cruft ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# ── Env / secrets ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+*.crt
+*.keystore
+secrets/
+credentials/
+*.token
+api-keys.*
+
+# ── Whisper / ML model cache ─────────────────────────────────────────────────
+models/
+*.ggml
+*.gguf
+*.bin
+*.safetensors
+*.mlmodelc
+
+# ── Dev-only tooling (not shown to users) ───────────────────────────────────
+# .claude/ = local agent tooling config; CLAUDE.md + AGENTS.md = dev-facing
+# workflow docs the end user never needs.
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# ── Plans working area (local working notes, not part of source) ────────────
+plans/
+
+# ── Python venvs (if MLX helper scripts land later) ──────────────────────────
+.venv/
+venv/
+__pycache__/
+*.pyc
