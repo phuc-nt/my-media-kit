@@ -36,6 +36,7 @@ pub fn run() {
             commands::content_filler_detect,
             commands::content_summary,
             commands::content_chapters,
+            commands::content_translate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

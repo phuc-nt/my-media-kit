@@ -17,5 +17,6 @@ pub mod chapters;
 pub mod filler;
 pub mod prompt_cut;
 pub mod summary;
+pub mod translate;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

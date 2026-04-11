@@ -16,6 +16,10 @@ use content_kit::{
     chapters::{ChapterList, ChapterRunner, ProviderChapterRunner},
     filler::{AiFillerDetector, FillerDetector},
     summary::{ProviderSummaryRunner, SummaryResult, SummaryRunner, SummaryStyle},
+    translate::{
+        ProviderTranslateRunner, TranslateOptions, TranslateResult, TranslateRunner,
+        DEFAULT_TARGET_LANGUAGE,
+    },
 };
 use creator_core::{AiProviderType, FillerDetection, TranscriptionSegment};
 
@@ -79,6 +83,46 @@ pub async fn content_chapters(request: ContentRequest) -> Result<ChapterList, St
     };
     runner
         .run(&request.segments, &language, &request.model)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranslateCommandRequest {
+    pub provider: AiProviderType,
+    pub model: String,
+    pub segments: Vec<TranscriptionSegment>,
+    /// BCP-47 source language detected by whisper. `None` means
+    /// auto-detect; runner will not skip.
+    #[serde(default)]
+    pub source_language: Option<String>,
+    /// Target BCP-47 language. Defaults to `"vi"` per v2 rules.
+    #[serde(default)]
+    pub target_language: Option<String>,
+}
+
+#[command]
+pub async fn content_translate(
+    request: TranslateCommandRequest,
+) -> Result<TranslateResult, String> {
+    let provider = resolve_provider(request.provider).await?;
+    let options = TranslateOptions {
+        target_language: request
+            .target_language
+            .unwrap_or_else(|| DEFAULT_TARGET_LANGUAGE.to_string()),
+        ..TranslateOptions::default()
+    };
+    let runner = ProviderTranslateRunner {
+        provider: provider.as_ref(),
+    };
+    runner
+        .run(
+            &request.segments,
+            request.source_language.as_deref(),
+            &options,
+            &request.model,
+        )
         .await
         .map_err(|e| e.to_string())
 }

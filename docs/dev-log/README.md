@@ -38,4 +38,4 @@ Sections được phép bỏ nếu không có nội dung.
 ## Index
 
 - [2026-04-10.md](2026-04-10.md) — Tauri pivot + 7 kits scaffolded + 105 unit tests
-- [2026-04-11.md](2026-04-11.md) — Real media pipeline verified + docs restructure
+- [2026-04-11.md](2026-04-11.md) — Real media pipeline verified + docs restructure + MLX-first + Translate feature

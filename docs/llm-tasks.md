@@ -160,11 +160,29 @@ Mentioned for completeness. v1 shipped a 4-pass Vietnamese compliance check. v2 
 
 ---
 
-## 7. Translation *(deferred)*
+## 7. Translation
 
-Mentioned for completeness. v1 translates segment-by-segment with context overflow fallback. Any modern LLM handles this trivially.
+**Input:** transcript segments + detected source language (BCP-47) + target language.
+**Output:** `TranslateResult { target_language, source_language, skipped, segments }` — timestamps + word arrays preserved 1:1, only `text` rewritten.
+**Rule v2:** if source primary tag matches target primary tag (default target `vi`), **skip entirely** — return originals untouched. Otherwise translate via the configured provider. Default target is Vietnamese per `DEFAULT_TARGET_LANGUAGE`.
 
-**Viable:** any provider listed above. Prefer Haiku / mini / Flash — high latency is the main user complaint.
+- Latency budget: 3-8 s per batch (batched by 45 s of transcript)
+- Context need: per-batch ~1-4 k tokens
+- Quality floor: Qwen 7B / Haiku / mini / Flash
+- Structured output: **required** (parallel `translations` array, one string per input segment)
+
+### Viable models
+
+| Provider | Model | Notes |
+|---|---|---|
+| **MLX (Apple Silicon)** | **`mlx-community/Qwen2.5-7B-Instruct-4bit`** | **Default.** Tested against EN→VI and JA→VI on real clips; translations read natural. |
+| MLX | `mlx-community/Qwen2.5-14B-Instruct-4bit` | Upgrade when 7B misses idiomatic phrasing. |
+| Claude | `claude-haiku-4-5-20251001` | Fast cloud alternative. |
+| OpenAI | `gpt-4o-mini` | Budget cloud option. |
+| Gemini | `gemini-2.0-flash` | Free-tier friendly. |
+| Ollama | `qwen2.5:7b` | Local non-Mac fallback. |
+
+Prompts force a JSON object with a single `translations` array — easier for small models than per-segment structured output and length mismatches are cheap to detect.
 
 ---
 
