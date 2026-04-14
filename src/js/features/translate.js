@@ -3,12 +3,16 @@
 
 import { getSource, subscribe } from "../source-store.js";
 import {
+  deriveSiblingPath,
   escapeHtml,
   formatMs,
   renderErrorBox,
   requireSource,
   requireTranscript,
+  segmentsToPlainText,
+  segmentsToSrt,
   setStatus,
+  showToast,
 } from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -17,6 +21,15 @@ export function initTranslateView() {
   const results = document.getElementById("translate-results");
   const status = document.getElementById("translate-status");
   const btn = document.getElementById("btn-translate");
+  const btnSaveSrt = document.getElementById("btn-translate-save");
+  const btnSaveTxt = document.getElementById("btn-translate-save-txt");
+
+  let lastResult = null;
+
+  function setSaveButtons(enabled) {
+    btnSaveSrt.disabled = !enabled;
+    btnSaveTxt.disabled = !enabled;
+  }
 
   btn.addEventListener("click", async () => {
     const source = getSource();
@@ -27,7 +40,9 @@ export function initTranslateView() {
     const model = document.getElementById("translate-model").value.trim();
     const target = document.getElementById("translate-target").value.trim() || "vi";
 
-    setStatus(status, "translating…");
+    setStatus(status, "translating…", "running");
+    btn.disabled = true;
+    setSaveButtons(false);
     results.innerHTML = "";
 
     try {
@@ -40,19 +55,48 @@ export function initTranslateView() {
           targetLanguage: target,
         },
       });
+      lastResult = out;
       renderTranslation(out, source.transcript.segments, results);
+      setSaveButtons(out?.segments?.length > 0);
       const tag = out.skipped ? "skipped (source already matches target)" : `translated to ${out.target_language}`;
       setStatus(status, tag, "ok");
     } catch (e) {
       console.error(e);
       renderErrorBox(results, String(e));
       setStatus(status, "failed", "err");
+    } finally {
+      btn.disabled = false;
     }
   });
+
+  async function save(format) {
+    if (!lastResult?.segments?.length) return;
+    const source = getSource();
+    if (!source?.path) return;
+    const isSrt = format === "srt";
+    const lang = (lastResult.target_language || "vi").replace(/[^a-z0-9-]/gi, "");
+    const suffix = isSrt ? `.${lang}.srt` : `.${lang}.txt`;
+    const target = deriveSiblingPath(source.path, suffix);
+    const content = isSrt
+      ? segmentsToSrt(lastResult.segments)
+      : segmentsToPlainText(lastResult.segments);
+    try {
+      const written = await invoke("save_text_file", { path: target, content });
+      showToast(`saved → ${written}`, "ok");
+    } catch (e) {
+      console.error(e);
+      showToast(`save failed: ${e}`, "err");
+    }
+  }
+
+  btnSaveSrt.addEventListener("click", () => save("srt"));
+  btnSaveTxt.addEventListener("click", () => save("txt"));
 
   subscribe((state) => {
     if (!state.path || !state.transcript) {
       results.innerHTML = `<p class="hint">transcribe a source first, then translate</p>`;
+      lastResult = null;
+      setSaveButtons(false);
     }
   });
 }

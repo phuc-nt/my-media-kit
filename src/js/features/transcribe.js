@@ -1,23 +1,95 @@
 // Transcribe feature view. Runs mlx_whisper_transcribe via Tauri, caches
 // the result in source-store so every other tab can read it.
+//
+// Also listens for `mlx_whisper_progress` events emitted by the backend
+// while the subprocess is running and drives a visible % bar + prominent
+// status label — whisper can take 30-90 s on long videos and the UI used
+// to look frozen without this.
 
 import { getSource, setTranscript, subscribe } from "../source-store.js";
-import { escapeHtml, formatMs, renderErrorBox, requireSource, setStatus } from "../util.js";
+import {
+  deriveSiblingPath,
+  escapeHtml,
+  formatMs,
+  renderErrorBox,
+  requireSource,
+  segmentsToPlainText,
+  segmentsToSrt,
+  setStatus,
+  showToast,
+} from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
 
 export function initTranscribeView() {
   const results = document.getElementById("transcribe-results");
   const status = document.getElementById("transcribe-status");
   const btnRun = document.getElementById("btn-transcribe");
   const btnForce = document.getElementById("btn-transcribe-refresh");
+  const btnSaveSrt = document.getElementById("btn-transcribe-save");
+  const btnSaveTxt = document.getElementById("btn-transcribe-save-txt");
+
+  const progressBox = document.getElementById("transcribe-progress");
+  const progressBar = document.getElementById("transcribe-progress-bar");
+  const progressLabel = document.getElementById("transcribe-progress-label");
+  const progressValue = document.getElementById("transcribe-progress-value");
+
+  let currentTranscript = null;
+  let running = false;
+
+  function setRunning(on, label = "running whisper…") {
+    running = on;
+    btnRun.disabled = on;
+    btnForce.disabled = on;
+    if (on) {
+      progressBox.hidden = false;
+      progressLabel.textContent = label;
+      progressBar.className = "progress-bar indeterminate";
+      progressValue.textContent = "…";
+      setStatus(status, label, "running");
+    } else {
+      progressBox.hidden = true;
+      progressBar.className = "progress-bar";
+      progressBar.style.width = "0%";
+    }
+  }
+
+  function setSaveButtons(enabled) {
+    btnSaveSrt.disabled = !enabled;
+    btnSaveTxt.disabled = !enabled;
+  }
+
+  function applyTranscript(out) {
+    currentTranscript = out;
+    setTranscript(out);
+    renderSegments(out, results);
+    setSaveButtons(out?.segments?.length > 0);
+  }
+
+  // Listen for progress events once. The backend always emits an initial
+  // 0% event before spawning whisper, so we can rely on events to show the
+  // bar even if the first segment takes a while to arrive.
+  listen("mlx_whisper_progress", (event) => {
+    if (!running) return;
+    const { percent, current_ms, total_ms } = event.payload || {};
+    if (typeof percent !== "number") return;
+    progressBar.className = "progress-bar";
+    progressBar.style.width = `${percent.toFixed(1)}%`;
+    progressValue.textContent = `${percent.toFixed(1)}%`;
+    const cur = formatMs(current_ms || 0);
+    const tot = total_ms ? formatMs(total_ms) : "?";
+    progressLabel.textContent = `running whisper… ${cur} / ${tot}`;
+  });
 
   async function run(force) {
     const source = getSource();
     if (!requireSource(source, status)) return;
 
-    setStatus(status, force ? "re-running whisper…" : "running whisper…");
     results.innerHTML = "";
+    setSaveButtons(false);
+    setRunning(true, force ? "re-running whisper…" : "running whisper…");
+
     try {
       const model = document.getElementById("transcribe-model").value.trim();
       const langRaw = document.getElementById("transcribe-lang").value.trim();
@@ -27,8 +99,7 @@ export function initTranscribeView() {
         model: model || null,
         force: !!force,
       });
-      setTranscript(out);
-      renderSegments(out, results);
+      applyTranscript(out);
       setStatus(
         status,
         `${out.segments.length} segments${out.fromCache ? " (cached)" : ""}`,
@@ -38,37 +109,64 @@ export function initTranscribeView() {
       console.error(e);
       renderErrorBox(results, String(e));
       setStatus(status, "failed", "err");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function save(format) {
+    if (!currentTranscript?.segments?.length) return;
+    const source = getSource();
+    if (!source?.path) return;
+    const isSrt = format === "srt";
+    const suffix = isSrt ? ".transcript.srt" : ".transcript.txt";
+    const target = deriveSiblingPath(source.path, suffix);
+    const content = isSrt
+      ? segmentsToSrt(currentTranscript.segments)
+      : segmentsToPlainText(currentTranscript.segments);
+    try {
+      const written = await invoke("save_text_file", {
+        path: target,
+        content,
+      });
+      showToast(`saved → ${written}`, "ok");
+    } catch (e) {
+      console.error(e);
+      showToast(`save failed: ${e}`, "err");
     }
   }
 
   btnRun.addEventListener("click", () => run(false));
   btnForce.addEventListener("click", () => run(true));
+  btnSaveSrt.addEventListener("click", () => save("srt"));
+  btnSaveTxt.addEventListener("click", () => save("txt"));
 
   // If user navigates back to this tab after picking a new source, refresh
   // the placeholder or load the cached transcript.
   subscribe(async (state) => {
+    if (running) return;
     if (!state.path) {
       results.innerHTML = `<p class="hint">no source selected</p>`;
+      currentTranscript = null;
+      setSaveButtons(false);
       return;
     }
     if (state.transcript) {
-      renderSegments(
-        { ...state.transcript, fromCache: true },
-        results,
-      );
-    } else {
-      try {
-        const hit = await invoke("get_cached_transcript", { path: state.path });
-        if (hit) {
-          setTranscript(hit);
-          renderSegments(hit, results);
-          setStatus(status, `${hit.segments.length} segments (cached)`, "ok");
-        } else {
-          results.innerHTML = `<p class="hint">not transcribed yet — hit the button above</p>`;
-        }
-      } catch (e) {
-        renderErrorBox(results, String(e));
+      applyTranscript({ ...state.transcript, fromCache: true });
+      return;
+    }
+    try {
+      const hit = await invoke("get_cached_transcript", { path: state.path });
+      if (hit) {
+        applyTranscript(hit);
+        setStatus(status, `${hit.segments.length} segments (cached)`, "ok");
+      } else {
+        results.innerHTML = `<p class="hint">not transcribed yet — hit the button above</p>`;
+        currentTranscript = null;
+        setSaveButtons(false);
       }
+    } catch (e) {
+      renderErrorBox(results, String(e));
     }
   });
 }

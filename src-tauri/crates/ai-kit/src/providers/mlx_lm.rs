@@ -9,6 +9,13 @@
 //! string for the Bearer header — the server ignores it but our
 //! `OpenAiProvider::is_available()` check guards against empty strings.
 //!
+//! **Model name:** newer versions of mlx_lm.server reject requests whose
+//! `model` field doesn't match the loaded model (it tries to fetch the name
+//! from HuggingFace). We therefore fetch the actual model id from
+//! `/v1/models` on first use (cached via `OnceCell`) and substitute it into
+//! every CompletionRequest before forwarding. Callers may pass any string —
+//! it is always overridden for this provider.
+//!
 //! **Lifecycle:** for MVP the user is responsible for starting the server
 //! (`mlx_lm.server --model <model> --port 8080`). Auto-spawning is a
 //! follow-up; it complicates error handling (port busy, model load delay,
@@ -18,7 +25,10 @@
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::OnceCell;
+
 
 use creator_core::{AiProviderError, AiProviderType};
 
@@ -34,6 +44,8 @@ pub struct MlxLmProvider {
     host: String,
     inner: OpenAiProvider,
     probe: reqwest::Client,
+    /// Lazily-fetched model id from the running server's `/v1/models`.
+    loaded_model: Arc<OnceCell<String>>,
 }
 
 impl MlxLmProvider {
@@ -52,11 +64,42 @@ impl MlxLmProvider {
             .timeout(Duration::from_millis(300))
             .build()
             .expect("build probe client");
-        Self { host, inner, probe }
+        Self {
+            host,
+            inner,
+            probe,
+            loaded_model: Arc::new(OnceCell::new()),
+        }
     }
 
     pub fn default_local() -> Self {
         Self::new(DEFAULT_HOST)
+    }
+
+    /// Return the model id currently loaded in the server. On first call this
+    /// issues a GET /v1/models and caches the first entry's id. Falls back to
+    /// DEFAULT_MODEL if the endpoint is unavailable or returns no data.
+    async fn server_model(&self) -> String {
+        self.loaded_model
+            .get_or_init(|| async {
+                let url = format!("{}/v1/models", self.host);
+                let id: Option<String> = async {
+                    let resp = self.probe.get(&url).send().await.ok()?;
+                    let body: Value = resp.json().await.ok()?;
+                    let s = body
+                        .get("data")?
+                        .as_array()?
+                        .first()?
+                        .get("id")?
+                        .as_str()?
+                        .to_string();
+                    Some(s)
+                }
+                .await;
+                id.unwrap_or_else(|| DEFAULT_MODEL.to_string())
+            })
+            .await
+            .clone()
     }
 }
 
@@ -88,6 +131,10 @@ impl Provider for MlxLmProvider {
         //      wrapping the text in {"text": "..."} for freeform requests.
         let wanted_json = matches!(request.response_format, ResponseFormat::JsonSchema { .. });
 
+        // Always use the model currently loaded in the server — newer versions
+        // of mlx_lm.server reject requests whose `model` field doesn't match.
+        let actual_model = self.server_model().await;
+
         let downgraded = if wanted_json {
             let schema_hint = match &request.response_format {
                 ResponseFormat::JsonSchema { name, schema } => {
@@ -101,12 +148,16 @@ impl Provider for MlxLmProvider {
                 _ => String::new(),
             };
             CompletionRequest {
+                model: actual_model,
                 user_prompt: format!("{}{}", request.user_prompt, schema_hint),
                 response_format: ResponseFormat::Freeform,
                 ..request.clone()
             }
         } else {
-            request.clone()
+            CompletionRequest {
+                model: actual_model,
+                ..request.clone()
+            }
         };
 
         let raw = self.inner.complete(downgraded).await?;

@@ -43,6 +43,7 @@ pub fn run() {
             commands::content_translate,
             commands::get_cached_transcript,
             commands::clear_cache,
+            commands::save_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -39,3 +39,4 @@ Sections được phép bỏ nếu không có nội dung.
 
 - [2026-04-10.md](2026-04-10.md) — Tauri pivot + 7 kits scaffolded + 105 unit tests
 - [2026-04-11.md](2026-04-11.md) — Real media pipeline verified + docs restructure + MLX-first + Translate feature
+- [2026-04-14.md](2026-04-14.md) — Acceptance-test bugs fixed (NaN/mojibake/loop/mismatch/model-name) + progress bar + save-to-file + E2E test suite 3/3

@@ -20,14 +20,21 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use creator_core::{AbortFlag, TranscriptionSegment, WordTimestamp};
 
 use crate::transcriber::{Transcriber, TranscriptionOptions};
+
+/// Callback invoked each time the mlx_whisper verbose output reports a new
+/// segment. Argument is the segment's **end** timestamp in milliseconds.
+/// Callers usually compare it against a known total duration to compute a %.
+pub type ProgressCallback = Arc<dyn Fn(i64) + Send + Sync>;
 
 /// Default mlx-whisper model — pre-downloaded on the primary dev machine.
 /// Override via env var `CREATOR_UTILS_MLX_WHISPER_MODEL` or builder arg.
@@ -62,6 +69,28 @@ impl MlxWhisperTranscriber {
         audio_path: &Path,
         options: &TranscriptionOptions,
     ) -> Result<Vec<TranscriptionSegment>, String> {
+        self.transcribe_file_inner(audio_path, options, None).await
+    }
+
+    /// Same as `transcribe_file` but forwards verbose-output timestamps to
+    /// `on_progress` as the subprocess reports each segment. Suitable for a
+    /// Tauri command that wants to emit `% complete` events to the frontend.
+    pub async fn transcribe_file_with_progress(
+        &self,
+        audio_path: &Path,
+        options: &TranscriptionOptions,
+        on_progress: ProgressCallback,
+    ) -> Result<Vec<TranscriptionSegment>, String> {
+        self.transcribe_file_inner(audio_path, options, Some(on_progress))
+            .await
+    }
+
+    async fn transcribe_file_inner(
+        &self,
+        audio_path: &Path,
+        options: &TranscriptionOptions,
+        on_progress: Option<ProgressCallback>,
+    ) -> Result<Vec<TranscriptionSegment>, String> {
         let tmp_dir = std::env::temp_dir().join(format!(
             "creator_utils_mlx_whisper_{}",
             uuid::Uuid::new_v4()
@@ -83,6 +112,16 @@ impl MlxWhisperTranscriber {
                 tmp_dir.to_string_lossy().as_ref(),
                 "--output-name",
                 stem,
+                // Disable context carry-over to avoid whisper's classic
+                // runaway-loop failure mode ("The Harvard men never ask that
+                // question" × 50). Slight accuracy hit on long-form narration
+                // but prevents cataclysmic loops on silence / music.
+                "--condition-on-previous-text",
+                "False",
+                // Drop segments whose audio is mostly silence but whisper
+                // still emits text for — the usual loop trigger.
+                "--hallucination-silence-threshold",
+                "2.0",
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -92,17 +131,55 @@ impl MlxWhisperTranscriber {
             cmd.arg("--language").arg(lang);
         }
 
-        let output = cmd
-            .output()
-            .await
+        let mut child = cmd
+            .spawn()
             .map_err(|e| format!("spawn mlx_whisper: {e}"))?;
 
-        if !output.status.success() {
+        // Drain stdout line-by-line so we can parse `[MM:SS.sss --> ...]`
+        // progress markers while whisper is still running. stderr is drained
+        // in parallel so long runs don't block on a full pipe.
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "mlx_whisper stdout not piped".to_string())?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "mlx_whisper stderr not piped".to_string())?;
+
+        let stdout_task = tokio::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if let Some(cb) = &on_progress {
+                    if let Some(end_ms) = parse_progress_line(&line) {
+                        cb(end_ms);
+                    }
+                }
+            }
+        });
+        let stderr_task = tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            let mut collected = String::new();
+            while let Ok(Some(line)) = reader.next_line().await {
+                collected.push_str(&line);
+                collected.push('\n');
+            }
+            collected
+        });
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("wait mlx_whisper: {e}"))?;
+        let _ = stdout_task.await;
+        let stderr_body = stderr_task.await.unwrap_or_default();
+
+        if !status.success() {
             let _ = std::fs::remove_dir_all(&tmp_dir);
             return Err(format!(
                 "mlx_whisper exited with status {:?}: {}",
-                output.status.code(),
-                String::from_utf8_lossy(&output.stderr)
+                status.code(),
+                stderr_body
             ));
         }
 
@@ -111,11 +188,136 @@ impl MlxWhisperTranscriber {
             .map_err(|e| format!("read {}: {e}", json_path.display()))?;
         let _ = std::fs::remove_dir_all(&tmp_dir);
 
-        let parsed: MlxWhisperOutput =
-            serde_json::from_str(&body).map_err(|e| format!("parse json: {e}"))?;
+        let sanitized = sanitize_python_json(&body);
+        let parsed: MlxWhisperOutput = serde_json::from_str(&sanitized)
+            .map_err(|e| format!("parse json: {e}"))?;
 
         Ok(parsed.into_segments())
     }
+}
+
+/// Parse an mlx_whisper verbose-output line of the form
+/// `[MM:SS.sss --> MM:SS.sss]  text...` and return the **end** timestamp in
+/// milliseconds. Returns `None` for any line that does not match. We only
+/// care about the end timestamp (monotonic, tracks whisper's cursor).
+fn parse_progress_line(line: &str) -> Option<i64> {
+    let rest = line.trim_start();
+    if !rest.starts_with('[') {
+        return None;
+    }
+    let inner_start = 1;
+    let close = rest.find(']')?;
+    let inner = &rest[inner_start..close];
+    let arrow = inner.find("-->")?;
+    let end_str = inner[arrow + 3..].trim();
+    parse_whisper_timestamp(end_str)
+}
+
+/// Parse `MM:SS.sss` (or `HH:MM:SS.sss`) into milliseconds.
+fn parse_whisper_timestamp(s: &str) -> Option<i64> {
+    let (time_part, frac_part) = match s.split_once('.') {
+        Some((a, b)) => (a, b),
+        None => (s, "0"),
+    };
+    let parts: Vec<&str> = time_part.split(':').collect();
+    let (h, m, sec) = match parts.as_slice() {
+        [m, sec] => (0i64, m.parse::<i64>().ok()?, sec.parse::<i64>().ok()?),
+        [h, m, sec] => (
+            h.parse::<i64>().ok()?,
+            m.parse::<i64>().ok()?,
+            sec.parse::<i64>().ok()?,
+        ),
+        _ => return None,
+    };
+    let frac_ms: i64 = {
+        let padded = format!("{:0<3}", frac_part);
+        padded.get(..3)?.parse::<i64>().ok()?
+    };
+    Some(((h * 3600 + m * 60 + sec) * 1000) + frac_ms)
+}
+
+/// Python's `json.dumps` emits bare `NaN`, `Infinity`, `-Infinity` tokens for
+/// non-finite floats (mlx_whisper does this for `avg_logprob` on empty /
+/// highly-uncertain segments). These are not valid JSON, so `serde_json`
+/// refuses to parse them. We only consume a handful of numeric fields and
+/// don't care about the non-finite values, so replace them with `null` before
+/// parsing. Only matches tokens in value position (`: <tok>` or `, <tok>` /
+/// `[<tok>`) so literal text inside string values is left alone.
+///
+/// Operates on raw bytes so multi-byte UTF-8 sequences in string values
+/// (Vietnamese diacritics, CJK, etc.) pass through untouched. A previous
+/// version used `String::push(b as char)` which corrupted every non-ASCII
+/// byte into a Latin-1 code point, producing classic mojibake like
+/// `cẠi thá»±` in the Transcribe view.
+fn sanitize_python_json(body: &str) -> String {
+    let bytes = body.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    let mut in_string = false;
+    let mut escape = false;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if in_string {
+            out.push(b);
+            if escape {
+                escape = false;
+            } else if b == b'\\' {
+                escape = true;
+            } else if b == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        if b == b'"' {
+            in_string = true;
+            out.push(b'"');
+            i += 1;
+            continue;
+        }
+        // Only replace tokens whose left-neighbour (after skipping ASCII
+        // whitespace) signals a value position: `:`, `,`, or `[`.
+        let preceded_by_value_marker = {
+            let mut j = out.len();
+            while j > 0 && matches!(out[j - 1], b' ' | b'\t' | b'\n' | b'\r') {
+                j -= 1;
+            }
+            j > 0 && matches!(out[j - 1], b':' | b',' | b'[')
+        };
+        if preceded_by_value_marker {
+            if let Some(len) = match_nonfinite(&bytes[i..]) {
+                out.extend_from_slice(b"null");
+                i += len;
+                continue;
+            }
+        }
+        out.push(b);
+        i += 1;
+    }
+    // Input was a valid `&str`; we only substitute `null` for `NaN`/
+    // `Infinity`/`-Infinity` which are pure ASCII. Therefore the output is
+    // guaranteed to be valid UTF-8 — `from_utf8_unchecked` would be safe,
+    // but `from_utf8` keeps the assertion cheap and explicit.
+    String::from_utf8(out).expect("sanitizer preserves UTF-8")
+}
+
+/// Returns Some(len) if `rest` starts with a bare `NaN`, `Infinity`, or
+/// `-Infinity` token whose next byte is not an identifier continuation.
+fn match_nonfinite(rest: &[u8]) -> Option<usize> {
+    const TOKENS: &[&[u8]] = &[b"NaN", b"Infinity", b"-Infinity"];
+    for tok in TOKENS {
+        if rest.starts_with(tok) {
+            let after = rest.get(tok.len()).copied();
+            let is_boundary = match after {
+                None => true,
+                Some(c) => !(c.is_ascii_alphanumeric() || c == b'_'),
+            };
+            if is_boundary {
+                return Some(tok.len());
+            }
+        }
+    }
+    None
 }
 
 impl Default for MlxWhisperTranscriber {
@@ -252,6 +454,85 @@ mod tests {
         assert_eq!(s.words[0].text, "Sự");
         assert_eq!(s.words[0].start_ms, 5100);
         assert!(s.words[0].confidence.is_some());
+    }
+
+    #[test]
+    fn sanitizer_rewrites_nan_and_infinity_in_value_position() {
+        let input = r#"{"a": NaN, "b": -Infinity, "c": Infinity, "d": 1.5}"#;
+        let out = sanitize_python_json(input);
+        assert_eq!(out, r#"{"a": null, "b": null, "c": null, "d": 1.5}"#);
+    }
+
+    #[test]
+    fn sanitizer_preserves_multibyte_utf8_in_strings() {
+        // Vietnamese "ạ" is `0xE1 0xBA 0xA1` in UTF-8 — a previous version
+        // pushed bytes through `char` and turned this into `á º ¡` mojibake.
+        let input =
+            r#"{"text": "6 cải thảo xanh, sự thật", "score": NaN}"#;
+        let out = sanitize_python_json(input);
+        assert!(out.contains("6 cải thảo xanh, sự thật"));
+        assert!(out.contains("\"score\": null"));
+        // Round-trip through serde to confirm we emitted valid UTF-8 JSON.
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["text"], "6 cải thảo xanh, sự thật");
+    }
+
+    #[test]
+    fn sanitizer_leaves_string_content_untouched() {
+        // "NaN" inside a JSON string must not be rewritten.
+        let input = r#"{"text": "the NaN token", "score": NaN}"#;
+        let out = sanitize_python_json(input);
+        assert_eq!(out, r#"{"text": "the NaN token", "score": null}"#);
+    }
+
+    #[test]
+    fn sanitizer_parses_real_mlx_whisper_shape() {
+        // Shape mirrors what mlx_whisper emits for a silent / low-confidence
+        // segment: `avg_logprob: NaN`, which the default serde_json parser
+        // rejects.
+        let body = r#"{
+            "language": "en",
+            "segments": [{
+                "id": 0,
+                "start": 0.0,
+                "end": 1.2,
+                "text": " hi",
+                "avg_logprob": NaN,
+                "compression_ratio": NaN,
+                "words": []
+            }]
+        }"#;
+        let sanitized = sanitize_python_json(body);
+        let parsed: MlxWhisperOutput = serde_json::from_str(&sanitized).unwrap();
+        assert_eq!(parsed.segments.len(), 1);
+        assert_eq!(parsed.segments[0].text, " hi");
+    }
+
+    #[test]
+    fn progress_parser_reads_mm_ss_lines() {
+        assert_eq!(
+            parse_progress_line("[00:00.000 --> 00:03.300]  hello"),
+            Some(3300)
+        );
+        assert_eq!(
+            parse_progress_line("[12:46.900 --> 12:59.340] !"),
+            Some(12 * 60_000 + 59_340)
+        );
+    }
+
+    #[test]
+    fn progress_parser_reads_hh_mm_ss_lines() {
+        assert_eq!(
+            parse_progress_line("[01:02:03.456 --> 01:02:05.000]  long"),
+            Some(((1 * 3600 + 2 * 60 + 5) * 1000) as i64)
+        );
+    }
+
+    #[test]
+    fn progress_parser_ignores_non_segment_lines() {
+        assert_eq!(parse_progress_line("Detected language: English"), None);
+        assert_eq!(parse_progress_line(""), None);
+        assert_eq!(parse_progress_line("[no arrow here]"), None);
     }
 
     #[test]

@@ -13,6 +13,7 @@
 pub mod ai;
 pub mod content;
 pub mod export;
+pub mod files;
 pub mod media;
 pub mod meta;
 pub mod nle;
@@ -22,6 +23,7 @@ pub mod transcription;
 pub use ai::*;
 pub use content::*;
 pub use export::*;
+pub use files::*;
 pub use media::*;
 pub use meta::*;
 pub use nle::*;

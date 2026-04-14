@@ -30,7 +30,10 @@ use creator_core::{AiProviderError, TranscriptionSegment};
 use crate::batch::{chunk_segments, TranscriptBatch};
 
 pub const DEFAULT_TARGET_LANGUAGE: &str = "vi";
-pub const DEFAULT_BATCH_SECONDS: f64 = 45.0;
+/// Smaller batch window than summary/chapters — local 7B models start
+/// dropping lines (returning N-1 translations for N inputs) once the batch
+/// crosses ~15 segments. 25 s keeps us safely under that in practice.
+pub const DEFAULT_BATCH_SECONDS: f64 = 25.0;
 
 /// Knobs for a single translate call.
 #[derive(Debug, Clone)]
@@ -164,28 +167,21 @@ impl<'a> TranslateRunner for ProviderTranslateRunner<'a> {
         let mut out = Vec::with_capacity(segments.len());
 
         for batch in &batches {
-            let req = CompletionRequest::structured(
+            let translations = translate_batch_with_retry(
+                self.provider,
                 model,
-                system_prompt(target_name),
-                user_prompt(batch, target_name),
-                "TranslatedBatch",
-                response_schema(),
-            );
-            let value = self.provider.complete(req).await?;
-            let parsed: TranslateResponse = serde_json::from_value(value)
-                .map_err(|e| AiProviderError::Malformed(format!("translate parse: {e}")))?;
+                batch,
+                target_name,
+            )
+            .await?;
 
-            if parsed.translations.len() != batch.segments.len() {
-                return Err(AiProviderError::Malformed(format!(
-                    "expected {} translations, got {}",
-                    batch.segments.len(),
-                    parsed.translations.len()
-                )));
-            }
-
-            for (original, translated_text) in
-                batch.segments.iter().zip(parsed.translations.into_iter())
-            {
+            // Pad or truncate so length always matches — `translate_batch_with_retry`
+            // already tried to get an exact count. Any remaining drift means
+            // we give the user an almost-translated transcript rather than
+            // failing the whole run.
+            let aligned =
+                align_to_originals(&batch.segments, translations);
+            for (original, translated_text) in batch.segments.iter().zip(aligned.into_iter()) {
                 let mut translated_segment = original.clone();
                 translated_segment.text = translated_text;
                 translated_segment.language = Some(options.target_language.clone());
@@ -199,6 +195,95 @@ impl<'a> TranslateRunner for ProviderTranslateRunner<'a> {
             skipped: false,
             segments: out,
         })
+    }
+}
+
+/// Ask the provider once, and if the returned array length does not match
+/// the batch, ask a second time with an even more explicit instruction. We
+/// do not fail on mismatch here — downstream `align_to_originals` pads with
+/// the source text so the user always gets something back.
+async fn translate_batch_with_retry(
+    provider: &dyn Provider,
+    model: &str,
+    batch: &TranscriptBatch,
+    target_name: &str,
+) -> Result<Vec<String>, AiProviderError> {
+    let req = CompletionRequest {
+        // Translations can be verbose: 25-second batches produce ~10-15 lines
+        // each averaging ~30 tokens in the target language → ~500 tokens output.
+        // 4096 gives 8× headroom; 2048 was too tight for long-sentence EN clips.
+        max_tokens: 4096,
+        ..CompletionRequest::structured(
+            model,
+            system_prompt(target_name),
+            user_prompt(batch, target_name),
+            "TranslatedBatch",
+            response_schema(),
+        )
+    };
+    let value = provider.complete(req).await?;
+    let parsed: TranslateResponse = serde_json::from_value(value)
+        .map_err(|e| AiProviderError::Malformed(format!("translate parse: {e}")))?;
+
+    if parsed.translations.len() == batch.segments.len() {
+        return Ok(parsed.translations);
+    }
+
+    // Retry once — restate the count explicitly and re-send. Small local
+    // models sometimes drop a line when a run has lots of short segments.
+    let retry_user = format!(
+        "{}\n\nIMPORTANT: you returned {} strings on the previous attempt \
+         but exactly {} are required — one per numbered line, same order, \
+         no omissions. Retry now.",
+        user_prompt(batch, target_name),
+        parsed.translations.len(),
+        batch.segments.len(),
+    );
+    let retry_req = CompletionRequest {
+        max_tokens: 4096,
+        ..CompletionRequest::structured(
+            model,
+            system_prompt(target_name),
+            retry_user,
+            "TranslatedBatch",
+            response_schema(),
+        )
+    };
+    let retry_value = provider.complete(retry_req).await?;
+    let retry_parsed: TranslateResponse = serde_json::from_value(retry_value)
+        .map_err(|e| AiProviderError::Malformed(format!("translate parse: {e}")))?;
+
+    // Return whichever attempt is closer to the expected length — caller
+    // pads the rest.
+    let want = batch.segments.len();
+    let first_drift = (parsed.translations.len() as i64 - want as i64).abs();
+    let retry_drift = (retry_parsed.translations.len() as i64 - want as i64).abs();
+    if retry_drift <= first_drift {
+        Ok(retry_parsed.translations)
+    } else {
+        Ok(parsed.translations)
+    }
+}
+
+/// Force the translations array to match the batch length by padding with
+/// the original text on under-run and truncating on over-run. Preserves
+/// alignment at index positions 0..min(len, expected).
+fn align_to_originals(
+    originals: &[TranscriptionSegment],
+    mut translations: Vec<String>,
+) -> Vec<String> {
+    match translations.len().cmp(&originals.len()) {
+        std::cmp::Ordering::Equal => translations,
+        std::cmp::Ordering::Less => {
+            for orig in &originals[translations.len()..] {
+                translations.push(orig.text.clone());
+            }
+            translations
+        }
+        std::cmp::Ordering::Greater => {
+            translations.truncate(originals.len());
+            translations
+        }
     }
 }
 
@@ -334,7 +419,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn translate_runner_errors_on_length_mismatch() {
+    async fn translate_runner_pads_missing_translations_with_originals() {
+        // LLM returns only 1 translation for 2 segments — we now pad with
+        // the original text on under-run and retry once before that.
+        // The StubProvider always returns the same payload so both the
+        // first attempt and the retry hand back 1 translation; align_to_originals
+        // fills the tail with the original text.
         let stub = StubProvider {
             calls: Mutex::new(0),
             response: json!({
@@ -343,11 +433,34 @@ mod tests {
         };
         let runner = ProviderTranslateRunner { provider: &stub };
         let segments = vec![seg(0, 1000, "hello"), seg(1000, 2000, "world")];
-        let err = runner
+        let result = runner
             .run(&segments, Some("en"), &TranslateOptions::default(), "model")
             .await
-            .unwrap_err();
-        assert!(matches!(err, AiProviderError::Malformed(_)));
+            .unwrap();
+        assert_eq!(result.segments.len(), 2);
+        assert_eq!(result.segments[0].text, "chỉ có một dòng");
+        assert_eq!(result.segments[1].text, "world"); // padded fallback
+        // Two provider calls: initial + retry (both came back short).
+        assert_eq!(*stub.calls.lock().unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn translate_runner_truncates_overflowing_translations() {
+        let stub = StubProvider {
+            calls: Mutex::new(0),
+            response: json!({
+                "translations": ["một", "hai", "ba thừa"]
+            }),
+        };
+        let runner = ProviderTranslateRunner { provider: &stub };
+        let segments = vec![seg(0, 1000, "one"), seg(1000, 2000, "two")];
+        let result = runner
+            .run(&segments, Some("en"), &TranslateOptions::default(), "model")
+            .await
+            .unwrap();
+        assert_eq!(result.segments.len(), 2);
+        assert_eq!(result.segments[0].text, "một");
+        assert_eq!(result.segments[1].text, "hai");
     }
 
     #[tokio::test]

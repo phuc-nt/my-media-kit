@@ -95,7 +95,17 @@
         <div class="actions">
           <button id="btn-transcribe" class="primary">Transcribe</button>
           <button id="btn-transcribe-refresh" class="ghost">Force re-run</button>
+          <button id="btn-transcribe-save" class="ghost" disabled>Save .srt</button>
+          <button id="btn-transcribe-save-txt" class="ghost" disabled>Save .txt</button>
           <span id="transcribe-status" class="status">ready</span>
+        </div>
+
+        <div id="transcribe-progress" class="progress-box" hidden>
+          <div class="progress-head">
+            <span id="transcribe-progress-label">running whisper…</span>
+            <span id="transcribe-progress-value">0%</span>
+          </div>
+          <div class="progress-track"><div id="transcribe-progress-bar" class="progress-bar"></div></div>
         </div>
 
         <div id="transcribe-results" class="results"></div>
@@ -122,7 +132,7 @@
         </div>
         <div class="field-row">
           <label for="translate-model">Model</label>
-          <input id="translate-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" />
+          <input id="translate-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" />
         </div>
         <div class="field-row">
           <label for="translate-target">Target language</label>
@@ -131,6 +141,8 @@
 
         <div class="actions">
           <button id="btn-translate" class="primary">Translate</button>
+          <button id="btn-translate-save" class="ghost" disabled>Save .srt</button>
+          <button id="btn-translate-save-txt" class="ghost" disabled>Save .txt</button>
           <span id="translate-status" class="status">ready</span>
         </div>
 

@@ -11,11 +11,21 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::Serialize;
-use tauri::{command, State};
+use tauri::{command, AppHandle, Emitter, State};
 
 use creator_core::TranscriptionSegment;
 
 use crate::state::{AppState, TranscriptEntry};
+
+/// Event name used for streaming mlx_whisper progress to the frontend.
+pub const PROGRESS_EVENT: &str = "mlx_whisper_progress";
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProgressPayload {
+    pub current_ms: i64,
+    pub total_ms: i64,
+    pub percent: f32,
+}
 
 #[derive(Debug, Serialize)]
 pub struct TranscribeOutput {
@@ -41,8 +51,10 @@ pub async fn mlx_whisper_transcribe(
     language: Option<String>,
     model: Option<String>,
     force: Option<bool>,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<TranscribeOutput, String> {
+    use std::sync::Arc as StdArc;
     use transcription_kit::{MlxWhisperTranscriber, TranscriptionOptions};
 
     let source = PathBuf::from(&path);
@@ -54,6 +66,14 @@ pub async fn mlx_whisper_transcribe(
         }
     }
 
+    // Probe duration first so the progress callback can compute a %.
+    // Failure to probe is non-fatal — we fall back to "unknown total"
+    // (percent = 0) and the frontend shows an indeterminate bar.
+    let total_ms = media_kit::probe_media(&source)
+        .await
+        .map(|p| p.duration_ms)
+        .unwrap_or(0);
+
     let mut transcriber = MlxWhisperTranscriber::new();
     if let Some(m) = model {
         transcriber = transcriber.with_model(m);
@@ -61,9 +81,48 @@ pub async fn mlx_whisper_transcribe(
     let mut options = TranscriptionOptions::default();
     options.language = language;
 
+    // Emit an initial 0% event so the UI swaps to progress mode immediately
+    // (there's a multi-second silence before whisper reports the first
+    // segment while the model loads).
+    let _ = app.emit(
+        PROGRESS_EVENT,
+        ProgressPayload {
+            current_ms: 0,
+            total_ms,
+            percent: 0.0,
+        },
+    );
+
+    let app_for_cb = app.clone();
+    let on_progress: transcription_kit::ProgressCallback = StdArc::new(move |end_ms: i64| {
+        let percent = if total_ms > 0 {
+            ((end_ms as f32 / total_ms as f32) * 100.0).clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+        let _ = app_for_cb.emit(
+            PROGRESS_EVENT,
+            ProgressPayload {
+                current_ms: end_ms,
+                total_ms,
+                percent,
+            },
+        );
+    });
+
     let segments = transcriber
-        .transcribe_file(&source, &options)
+        .transcribe_file_with_progress(&source, &options, on_progress)
         .await?;
+
+    // Final 100% tick so the frontend hides the bar cleanly.
+    let _ = app.emit(
+        PROGRESS_EVENT,
+        ProgressPayload {
+            current_ms: total_ms,
+            total_ms,
+            percent: 100.0,
+        },
+    );
 
     let language = segments.iter().find_map(|s| s.language.clone());
     let entry = TranscriptEntry { language, segments };
@@ -78,6 +137,7 @@ pub async fn mlx_whisper_transcribe(
     _language: Option<String>,
     _model: Option<String>,
     _force: Option<bool>,
+    _app: AppHandle,
     _state: State<'_, AppState>,
 ) -> Result<TranscribeOutput, String> {
     Err("mlx_whisper backend is only available on Apple Silicon (macOS aarch64)".into())

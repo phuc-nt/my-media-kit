@@ -4,10 +4,7 @@
   "version": "0.1.0",
   "identifier": "tech.lighton.media.CreatorUtils",
   "build": {
-    "frontendDist": "../src",
-    "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "",
-    "beforeBuildCommand": ""
+    "frontendDist": "../src"
   },
   "app": {
     "withGlobalTauri": true,

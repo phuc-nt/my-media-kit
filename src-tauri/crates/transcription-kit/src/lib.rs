@@ -25,6 +25,6 @@ pub use catalog::{ModelCatalog, WhisperModelId};
 pub use transcriber::{NullTranscriber, Transcriber, TranscriptionOptions};
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-pub use mlx_whisper::MlxWhisperTranscriber;
+pub use mlx_whisper::{MlxWhisperTranscriber, ProgressCallback};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

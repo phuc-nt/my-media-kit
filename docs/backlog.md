@@ -30,7 +30,7 @@ Goal: the output is usable in production, not just demo material.
 | # | Item | Value | Effort | Risk | Notes |
 |---|---|---|---|---|---|
 | B1 | Filler prompt tuning (fix false positives on "Today/First/Then/Finally" or bump default to Qwen 7B) | 4 | 1 | 1 | Low effort; huge quality delta. Try prompt first, then raise model. |
-| B2 | Length-mismatch repair for translate (retry missing indices) | 3 | 2 | 2 | Hardens local-model JSON drift; affects translate reliability. |
+| ~~B2~~ | ~~Length-mismatch repair for translate (retry missing indices)~~ **DONE** | 3 | 2 | 2 | `translate_batch_with_retry` + `align_to_originals` — never errors on drift. |
 | B3 | Direct export wiring to AutoCut UI (Export to MP4 button using `export_video_direct`) | 4 | 2 | 1 | Backend command ready; just UI + flow. |
 | B4 | NLE export wiring (FCPXML / Premiere / Resolve selector) | 4 | 2 | 1 | Same — backend ready, frontend missing. |
 
@@ -54,9 +54,11 @@ After Milestone B: creators can actually ship cuts with this tool.
 - 2026-04-11 session 2 — MLX-first default (whisper + lm) + 126 tests
 - 2026-04-11 session 3 — Translate feature + VN skip rule + 137 tests
 - 2026-04-11 session 4 — Git init + public repo on GitHub
+- 2026-04-14 — Acceptance-test session: 5 bugs fixed (NaN, mojibake, whisper loop, translate mismatch, mlx_lm model-name), progress bar, save-to-file, E2E backend test suite 3/3 pass on full-length clips
 
 ## Open questions for next session start
 
 - Filler default: stick with Qwen 3B + prompt tune, or bump to Qwen 7B?
 - Frontend approach: stay with plain HTML/JS or introduce Vite + Svelte when views grow?
 - Cloud provider visibility: hide when MLX default is healthy, or always show as "BYOK"?
+- `gemma-4-E4B-it-4bit` translate quality vs Qwen2.5-7B — revisit when mlx-lm adds gemma4 support.
