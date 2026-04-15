@@ -65,8 +65,17 @@ function normalizeToCutRange(d) {
   return { cut_start_ms: d.cutStartMs, cut_end_ms: d.cutEndMs };
 }
 
+// Switch to the Transcribe tab — called from the "Go to Transcribe" nudge button.
+function switchToTranscribe() {
+  const btn = document.querySelector('[data-feature="transcribe"]');
+  btn?.click();
+}
+
 export function initAiPanel(onChanged) {
   const panel = document.getElementById("autocut-ai");
+
+  // "Go to Transcribe" nudge button
+  document.getElementById("btn-go-transcribe")?.addEventListener("click", switchToTranscribe);
 
   // Show/hide AI panel based on transcript availability — wired externally
   // via the source-store subscriber in autocut.js.
@@ -158,8 +167,19 @@ export function initAiPanel(onChanged) {
   });
 }
 
-// Called by the source-store subscriber to show/hide the AI panel.
+// Called by the source-store subscriber to show/hide AI panel vs. nudge.
 export function setAiPanelVisible(hasTranscript) {
-  const panel = document.getElementById("autocut-ai");
-  panel.hidden = !hasTranscript;
+  document.getElementById("autocut-ai").hidden = !hasTranscript;
+  document.getElementById("autocut-no-transcript").hidden = hasTranscript;
+  const badge = document.getElementById("step2-badge");
+  const num = document.getElementById("step2-num");
+  if (hasTranscript) {
+    badge.textContent = "transcript ready";
+    badge.className = "step-badge ok";
+    num.className = "step-num active";
+  } else {
+    badge.textContent = "transcript required";
+    badge.className = "step-badge";
+    num.className = "step-num";
+  }
 }

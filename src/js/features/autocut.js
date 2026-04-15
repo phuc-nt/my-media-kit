@@ -33,13 +33,18 @@ export function initAutoCutView() {
   // React to source changes: clear all cut state and reset UI.
   subscribe((state) => {
     if (!state.path) {
-      document.getElementById("silence-results").innerHTML =
-        `<p class="hint">pick a source video in the sidebar</p>`;
+      document.getElementById("silence-results").innerHTML = "";
       document.getElementById("autocut-export").hidden = true;
       document.getElementById("filler-results").innerHTML = "";
       document.getElementById("duplicate-results").innerHTML = "";
       document.getElementById("ai-prompt-results").innerHTML = "";
+      // Reset step badges to initial state
+      const s1Badge = document.getElementById("step1-badge");
+      const s1Num = document.getElementById("step1-num");
+      if (s1Badge) { s1Badge.textContent = "offline · DSP"; s1Badge.className = "step-badge"; }
+      if (s1Num) s1Num.className = "step-num active";
       clearAll();
+      refreshExportPanel(); // resets step3 badge
     }
     // Update speech mask whenever transcript changes so silence cuts
     // are clipped against actual speech regions at export time.

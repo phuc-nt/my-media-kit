@@ -13,9 +13,11 @@
         <span id="app-version" class="app-version">…</span>
       </header>
 
-      <section class="source-picker">
+      <section class="source-picker" id="source-picker-area">
         <label class="source-label" for="source-path">Source video</label>
-        <input id="source-path" type="text" placeholder="/absolute/path/to/video.mp4" />
+        <div class="source-picker-row">
+          <input id="source-path" type="text" placeholder="drag a video here or paste path…" />
+        </div>
         <div class="source-meta" id="source-meta">no file selected</div>
         <button id="btn-source-clear" class="ghost small">Clear cache</button>
       </section>
@@ -36,17 +38,24 @@
     <main id="detail" aria-live="polite">
       <!-- ───────── AutoCut view ───────── -->
       <section class="feature-view active" data-view="autocut">
-        <h2>AutoCut — Silence Detection</h2>
+        <h2>AutoCut</h2>
         <p class="hint">
-          Runs fully offline. First detect extracts PCM + caches it; slider
-          tweaks re-run detection against the cached buffer instantly.
+          Multi-pass pipeline: silence detection (offline, cached) →
+          AI content analysis (transcript required) → export.
         </p>
 
+        <!-- ── Step 1: Silence Detection ── -->
+        <div class="section-step">
+          <span class="step-num active" id="step1-num">1</span>
+          <h3>Silence Detection</h3>
+          <span class="step-badge" id="step1-badge">offline · DSP</span>
+        </div>
+
         <fieldset class="config-grid">
-          <legend>Silence config</legend>
+          <legend>Config</legend>
           <label><span>Auto threshold</span><input type="checkbox" id="cfg-auto" checked /></label>
-          <label><span>Manual threshold</span>
-            <input type="range" id="cfg-threshold" min="0.005" max="0.2" step="0.005" value="0.03" />
+          <label id="lbl-threshold" class="dimmed"><span>Manual threshold</span>
+            <input type="range" id="cfg-threshold" min="0.005" max="0.2" step="0.005" value="0.03" disabled />
             <output id="cfg-threshold-val">0.030</output>
           </label>
           <label><span>Min duration (s)</span>
@@ -74,10 +83,21 @@
 
         <div id="silence-results" class="results"></div>
 
-        <!-- AI Content Analysis — hidden until transcript is loaded -->
-        <div id="autocut-ai" hidden>
-          <h3>Content Analysis <span class="hint">(transcript required)</span></h3>
+        <!-- ── Step 2: Content Analysis ── -->
+        <div class="section-step">
+          <span class="step-num" id="step2-num">2</span>
+          <h3>Content Analysis</h3>
+          <span class="step-badge" id="step2-badge">transcript required</span>
+        </div>
 
+        <!-- Shown when no transcript loaded -->
+        <div id="autocut-no-transcript" class="no-transcript-nudge">
+          <span>Transcript needed for filler &amp; re-take detection.</span>
+          <button class="ghost small" id="btn-go-transcribe">Go to Transcribe →</button>
+        </div>
+
+        <!-- Shown when transcript is available -->
+        <div id="autocut-ai" hidden>
           <div class="field-row">
             <label for="autocut-ai-provider">Provider</label>
             <select id="autocut-ai-provider">
@@ -117,15 +137,20 @@
           <div id="ai-prompt-results" class="results"></div>
         </div>
 
-        <!-- Export panel — hidden until at least one detector has run -->
-        <div id="autocut-export" hidden>
+        <!-- ── Step 3: Export ── -->
+        <div class="section-step">
+          <span class="step-num" id="step3-num">3</span>
           <h3>Export</h3>
-          <div id="autocut-export-stats" class="hint"></div>
+          <span class="step-badge" id="step3-badge">run detection first</span>
+        </div>
+
+        <div id="autocut-export" hidden>
+          <div id="autocut-export-stats" class="hint" style="margin-bottom:12px"></div>
           <div class="actions">
             <button id="btn-export-mp4" class="primary">Export MP4</button>
-            <button id="btn-export-fcp" class="ghost">Export FCPXML</button>
-            <button id="btn-export-premiere" class="ghost">Export Premiere XML</button>
-            <button id="btn-export-resolve" class="ghost">Export Resolve XML</button>
+            <button id="btn-export-fcp" class="ghost">FCPXML</button>
+            <button id="btn-export-premiere" class="ghost">Premiere XML</button>
+            <button id="btn-export-resolve" class="ghost">Resolve XML</button>
             <span id="export-status" class="status"></span>
           </div>
         </div>

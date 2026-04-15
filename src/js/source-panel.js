@@ -10,6 +10,7 @@ export function initSourcePanel() {
   const input = document.getElementById("source-path");
   const meta = document.getElementById("source-meta");
   const clearBtn = document.getElementById("btn-source-clear");
+  const pickerArea = document.getElementById("source-picker-area");
 
   async function commitSource() {
     setSourcePath(input.value);
@@ -33,6 +34,28 @@ export function initSourcePanel() {
 
   input.addEventListener("change", commitSource);
   input.addEventListener("blur", commitSource);
+
+  // Drag-and-drop: accept files dropped anywhere on the sidebar picker area.
+  // Tauri extends the File object with a `path` property (absolute OS path).
+  pickerArea.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    pickerArea.classList.add("drag-active");
+  });
+  pickerArea.addEventListener("dragleave", () => {
+    pickerArea.classList.remove("drag-active");
+  });
+  pickerArea.addEventListener("drop", (e) => {
+    e.preventDefault();
+    pickerArea.classList.remove("drag-active");
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+    // Tauri adds .path to File objects dropped from the OS file manager.
+    const absPath = file.path || file.name;
+    if (absPath) {
+      input.value = absPath;
+      commitSource();
+    }
+  });
 
   clearBtn.addEventListener("click", async () => {
     const { path } = getSource();

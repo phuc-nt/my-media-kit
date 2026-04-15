@@ -73,14 +73,31 @@ export function initSilencePanel(onChanged) {
     update();
   });
 
+  // Auto-threshold toggle: disable the manual slider when checked.
+  const autoChk = document.getElementById("cfg-auto");
+  const thresholdLbl = document.getElementById("lbl-threshold");
+  const thresholdSlider = document.getElementById("cfg-threshold");
+
+  function syncThresholdState() {
+    const auto = autoChk.checked;
+    thresholdSlider.disabled = auto;
+    thresholdLbl.classList.toggle("dimmed", auto);
+  }
+  autoChk.addEventListener("change", syncThresholdState);
+  syncThresholdState();
+
   const btn = document.getElementById("btn-detect");
   const status = document.getElementById("detect-status");
   const container = document.getElementById("silence-results");
+  const step1Badge = document.getElementById("step1-badge");
+  const step1Num = document.getElementById("step1-num");
 
   btn.addEventListener("click", async () => {
     const { path: source, probe } = getSource();
     if (!requireSource({ path: source }, status)) return;
     setStatus(status, "detecting…");
+    step1Badge.textContent = "running…";
+    step1Badge.className = "step-badge running";
     try {
       const config = readConfig();
       const result = await invoke("detect_silence_in_file", { path: source, config });
@@ -91,11 +108,21 @@ export function initSilencePanel(onChanged) {
       setSilenceCuts(result.regions);
       renderRegionTable(result.regions, frameCount, fromCache, container);
       setStatus(status, `${result.regions.length} regions`, "ok");
+
+      // Update step badge
+      const cutMs = result.regions.reduce((s, r) => s + r.end_ms - r.start_ms, 0);
+      step1Badge.textContent = `${result.regions.length} regions · ${(cutMs / 1000).toFixed(1)}s`;
+      step1Badge.className = "step-badge ok";
+      step1Num.className = "step-num done";
+
       onChanged();
     } catch (err) {
       console.error(err);
       renderErrorBox(container, String(err));
       setStatus(status, "failed", "err");
+      step1Badge.textContent = "offline · DSP";
+      step1Badge.className = "step-badge";
+      step1Num.className = "step-num active";
     }
   });
 }

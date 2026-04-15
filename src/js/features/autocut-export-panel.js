@@ -80,8 +80,14 @@ async function runExport(kind) {
 // Refresh the stats line and show/hide the panel based on cut store state.
 export function refreshExportPanel() {
   const panel = document.getElementById("autocut-export");
+  const step3Badge = document.getElementById("step3-badge");
+  const step3Num = document.getElementById("step3-num");
+
   if (!hasCuts()) {
     panel.hidden = true;
+    step3Badge.textContent = "run detection first";
+    step3Badge.className = "step-badge";
+    step3Num.className = "step-num";
     return;
   }
   const { path: source, probe } = getSource();
@@ -100,7 +106,14 @@ export function refreshExportPanel() {
   if (counts.aiPrompt) parts.push(`${counts.aiPrompt} AI`);
 
   document.getElementById("autocut-export-stats").textContent =
-    `Cut: ${formatMs(cutMs)} (${parts.join(", ")}) · Keep: ${formatMs(keepMs)} (${keepRanges.length} segments)`;
+    `Remove: ${formatMs(cutMs)} (${parts.join(", ")}) · Keep: ${formatMs(keepMs)} across ${keepRanges.length} segments`;
+
+  // Update step 3 badge
+  const pct = totalMs > 0 ? Math.round((1 - keepMs / totalMs) * 100) : 0;
+  step3Badge.textContent = `−${pct}% · ${formatMs(cutMs)} cut`;
+  step3Badge.className = "step-badge ok";
+  step3Num.className = "step-num active";
+
   panel.hidden = false;
 }
 
