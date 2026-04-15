@@ -230,6 +230,16 @@ fn build_registry() -> ProviderRegistry {
         let p: Arc<dyn Provider> = Arc::new(GeminiProvider::new(key));
         registry.register(p);
     }
+    if let Some(key) = store.get(AiProviderType::OpenRouter).unwrap_or(None) {
+        use ai_kit::OpenRouterProvider;
+        let p: Arc<dyn Provider> = Arc::new(OpenRouterProvider::new(key));
+        registry.register(p);
+    }
+    if let Some(key) = store.get(AiProviderType::Groq).unwrap_or(None) {
+        use ai_kit::GroqProvider;
+        let p: Arc<dyn Provider> = Arc::new(GroqProvider::new(key));
+        registry.register(p);
+    }
     use ai_kit::OllamaProvider;
     let host = store
         .get(AiProviderType::Ollama)

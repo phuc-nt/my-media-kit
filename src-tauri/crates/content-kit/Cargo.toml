@@ -18,3 +18,5 @@ tokio = { workspace = true }
 tokio = { workspace = true }
 ai-kit = { path = "../ai-kit" }
 transcription-kit = { path = "../transcription-kit" }
+media-kit = { path = "../media-kit" }
+uuid = { workspace = true }

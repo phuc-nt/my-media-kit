@@ -7,7 +7,7 @@
 //! downstream content-kit features (summary / chapters / filler /
 //! translate) read from cache instead of re-invoking whisper.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -16,6 +16,27 @@ use tauri::{command, AppHandle, Emitter, State};
 use creator_core::TranscriptionSegment;
 
 use crate::state::{AppState, TranscriptEntry};
+
+/// RAII guard — deletes the temp audio file when dropped.
+struct TempAudio(PathBuf);
+impl Drop for TempAudio {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Extract a mono 16 kHz 32 kbps MP3 from any media file into `std::env::temp_dir()`.
+/// Returns the path + an RAII guard that deletes it on drop.
+async fn prepare_audio(source: &Path) -> Result<(PathBuf, TempAudio), String> {
+    use uuid::Uuid;
+    let stem = source.file_stem().and_then(|s| s.to_str()).unwrap_or("audio");
+    let tmp = std::env::temp_dir().join(format!("{stem}_asr_{}.mp3", Uuid::new_v4()));
+    media_kit::extract_audio_mp3(source, &tmp)
+        .await
+        .map_err(|e| format!("audio extraction failed: {e}"))?;
+    let guard = TempAudio(tmp.clone());
+    Ok((tmp, guard))
+}
 
 /// Event name used for streaming mlx_whisper progress to the frontend.
 pub const PROGRESS_EVENT: &str = "mlx_whisper_progress";
@@ -66,9 +87,12 @@ pub async fn mlx_whisper_transcribe(
         }
     }
 
-    // Probe duration first so the progress callback can compute a %.
-    // Failure to probe is non-fatal — we fall back to "unknown total"
-    // (percent = 0) and the frontend shows an indeterminate bar.
+    // Extract audio-only MP3 before passing to whisper — video track is never
+    // needed for transcription and stripping it cuts file size significantly.
+    let (audio_path, _audio_guard) = prepare_audio(&source).await?;
+
+    // Probe duration of the original source for the progress bar.
+    // Failure is non-fatal — frontend shows an indeterminate bar.
     let total_ms = media_kit::probe_media(&source)
         .await
         .map(|p| p.duration_ms)
@@ -81,16 +105,10 @@ pub async fn mlx_whisper_transcribe(
     let mut options = TranscriptionOptions::default();
     options.language = language;
 
-    // Emit an initial 0% event so the UI swaps to progress mode immediately
-    // (there's a multi-second silence before whisper reports the first
-    // segment while the model loads).
+    // Emit an initial 0% event so the UI swaps to progress mode immediately.
     let _ = app.emit(
         PROGRESS_EVENT,
-        ProgressPayload {
-            current_ms: 0,
-            total_ms,
-            percent: 0.0,
-        },
+        ProgressPayload { current_ms: 0, total_ms, percent: 0.0 },
     );
 
     let app_for_cb = app.clone();
@@ -102,26 +120,18 @@ pub async fn mlx_whisper_transcribe(
         };
         let _ = app_for_cb.emit(
             PROGRESS_EVENT,
-            ProgressPayload {
-                current_ms: end_ms,
-                total_ms,
-                percent,
-            },
+            ProgressPayload { current_ms: end_ms, total_ms, percent },
         );
     });
 
     let segments = transcriber
-        .transcribe_file_with_progress(&source, &options, on_progress)
+        .transcribe_file_with_progress(&audio_path, &options, on_progress)
         .await?;
 
     // Final 100% tick so the frontend hides the bar cleanly.
     let _ = app.emit(
         PROGRESS_EVENT,
-        ProgressPayload {
-            current_ms: total_ms,
-            total_ms,
-            percent: 100.0,
-        },
+        ProgressPayload { current_ms: total_ms, total_ms, percent: 100.0 },
     );
 
     let language = segments.iter().find_map(|s| s.language.clone());
@@ -141,6 +151,53 @@ pub async fn mlx_whisper_transcribe(
     _state: State<'_, AppState>,
 ) -> Result<TranscribeOutput, String> {
     Err("mlx_whisper backend is only available on Apple Silicon (macOS aarch64)".into())
+}
+
+/// Groq Whisper transcription — available on all platforms.
+/// Uploads the source file to Groq's ASR endpoint and caches the result.
+#[command]
+pub async fn groq_transcribe(
+    path: String,
+    language: Option<String>,
+    model: Option<String>,
+    force: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<TranscribeOutput, String> {
+    use ai_kit::{KeyringSecretStore, SecretStore};
+    use creator_core::AiProviderType;
+    use transcription_kit::{GroqWhisperTranscriber, TranscriptionOptions};
+
+    let source = PathBuf::from(&path);
+    let refresh = force.unwrap_or(false);
+
+    if !refresh {
+        if let Some(hit) = state.transcript_get(&source) {
+            return Ok(TranscribeOutput::from_entry(hit, true));
+        }
+    }
+
+    let store = KeyringSecretStore::new();
+    let api_key = store
+        .get(AiProviderType::Groq)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Groq API key not set — add it in Settings".to_string())?;
+
+    // Extract audio-only MP3 before uploading — strips video track, reduces
+    // upload size, and guarantees we stay under Groq's 25 MB limit.
+    let (audio_path, _audio_guard) = prepare_audio(&source).await?;
+
+    let transcriber = GroqWhisperTranscriber::new(api_key);
+    let mut options = TranscriptionOptions::default();
+    options.language = language;
+
+    let segments = transcriber
+        .transcribe_file(&audio_path, model.as_deref(), &options)
+        .await?;
+
+    let language = segments.iter().find_map(|s| s.language.clone());
+    let entry = crate::state::TranscriptEntry { language, segments };
+    let arc = state.transcript_put(source, entry);
+    Ok(TranscribeOutput::from_entry(arc, false))
 }
 
 /// Return the cached transcript for a source path, or `None` if we have

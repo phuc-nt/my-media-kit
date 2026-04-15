@@ -9,10 +9,12 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
+import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 export function initSummaryView() {
+  wireProviderModelSync("summary-provider", "summary-model");
   const results = document.getElementById("summary-results");
   const status = document.getElementById("summary-status");
   const btn = document.getElementById("btn-summary");

@@ -14,8 +14,9 @@ use tokio::process::Command;
 
 use crate::error::MediaError;
 use crate::ffmpeg::{
-    build_cut_and_concat_args, build_extract_pcm_args, build_probe_duration_args,
-    build_probe_full_args, resolve_ffmpeg_binary, resolve_ffprobe_binary,
+    build_cut_and_concat_args, build_extract_audio_mp3_args, build_extract_pcm_args,
+    build_probe_duration_args, build_probe_full_args, resolve_ffmpeg_binary,
+    resolve_ffprobe_binary,
 };
 use crate::wav::parse_wav_f32_mono;
 
@@ -184,6 +185,36 @@ pub async fn extract_pcm_samples(input: &Path) -> Result<Vec<f32>, MediaError> {
     }
 
     parse_wav_f32_mono(&output.stdout)
+}
+
+/// Extract a small mono MP3 from any media file (video or audio) for use
+/// with cloud ASR APIs. Output path is chosen by the caller.
+///
+/// Uses: `-vn -ac 1 -ar 16000 -b:a 32k` — 60 min ≈ 14 MB.
+pub async fn extract_audio_mp3(input: &Path, output: &Path) -> Result<(), MediaError> {
+    let bin = resolve_ffmpeg_binary()?;
+    let args = build_extract_audio_mp3_args(input, output);
+
+    let result = Command::new(bin.as_path())
+        .args(&args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| MediaError::Spawn(e.to_string()))?;
+
+    if !result.status.success() {
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        if stderr.contains("does not contain any stream") || stderr.contains("Stream map") {
+            return Err(MediaError::NoAudioTrack);
+        }
+        return Err(MediaError::ExitFailed {
+            status: result.status.code().unwrap_or(-1),
+            stderr: stderr.into_owned(),
+        });
+    }
+    Ok(())
 }
 
 /// Run the cut-and-concat pipeline on a source file, writing the result to

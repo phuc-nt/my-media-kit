@@ -15,6 +15,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 async-trait = "0.1"
 uuid = { workspace = true }
+# reqwest with multipart for Groq Whisper file upload
+reqwest = { workspace = true, features = ["multipart"] }
 
 # whisper-rs is added in Phase 4 once cmake is confirmed installed on the
 # build host. Depending on it here forces every `cargo check` to rebuild

@@ -10,12 +10,14 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
+import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 let lastChapters = null;
 
 export function initChaptersView() {
+  wireProviderModelSync("chapters-provider", "chapters-model");
   const results = document.getElementById("chapters-results");
   const status = document.getElementById("chapters-status");
   const btn = document.getElementById("btn-chapters");

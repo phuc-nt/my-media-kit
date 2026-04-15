@@ -85,6 +85,31 @@ fn is_executable(path: &Path) -> bool {
     path.is_file()
 }
 
+/// Build the ffmpeg command that extracts a small mono MP3 suitable for
+/// upload to cloud ASR APIs (Groq Whisper etc.).
+///
+/// Settings: `-vn -ac 1 -ar 16000 -b:a 32k`
+/// A 60-min audio track at 32 kbps ≈ 14 MB — well within cloud API limits.
+pub fn build_extract_audio_mp3_args(input: &Path, output: &Path) -> Vec<String> {
+    vec![
+        "-hide_banner".into(),
+        "-loglevel".into(),
+        "error".into(),
+        "-nostdin".into(),
+        "-y".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-vn".into(),
+        "-ac".into(),
+        "1".into(),
+        "-ar".into(),
+        "16000".into(),
+        "-b:a".into(),
+        "32k".into(),
+        output.to_string_lossy().into_owned(),
+    ]
+}
+
 /// Build the ffmpeg command that decodes the input to a WAV stream on stdout
 /// at the whisper-expected format (16 kHz mono PCM f32le).
 ///

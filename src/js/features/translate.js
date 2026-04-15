@@ -14,10 +14,12 @@ import {
   setStatus,
   showToast,
 } from "../util.js";
+import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 export function initTranslateView() {
+  wireProviderModelSync("translate-provider", "translate-model");
   const results = document.getElementById("translate-results");
   const status = document.getElementById("translate-status");
   const btn = document.getElementById("btn-translate");

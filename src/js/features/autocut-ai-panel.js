@@ -6,6 +6,7 @@
 import { getSource } from "../source-store.js";
 import { escapeHtml, formatMs, setStatus } from "../util.js";
 import { setFillerCuts, setDuplicateCuts, setAiPromptCuts } from "./autocut-cut-store.js";
+import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -73,6 +74,8 @@ function switchToTranscribe() {
 
 export function initAiPanel(onChanged) {
   const panel = document.getElementById("autocut-ai");
+
+  wireProviderModelSync("autocut-ai-provider", "autocut-ai-model");
 
   // "Go to Transcribe" nudge button
   document.getElementById("btn-go-transcribe")?.addEventListener("click", switchToTranscribe);

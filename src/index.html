@@ -102,15 +102,17 @@
             <label for="autocut-ai-provider">Provider</label>
             <select id="autocut-ai-provider">
               <option value="mlx" selected>MLX (local)</option>
+              <option value="groq">Groq</option>
               <option value="claude">Claude</option>
               <option value="openAi">OpenAI</option>
               <option value="gemini">Gemini</option>
               <option value="ollama">Ollama</option>
+              <option value="openRouter">OpenRouter</option>
             </select>
           </div>
           <div class="field-row">
             <label for="autocut-ai-model">Model</label>
-            <input id="autocut-ai-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" />
+            <input id="autocut-ai-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
           </div>
 
           <div class="actions">
@@ -160,13 +162,19 @@
       <section class="feature-view" data-view="transcribe">
         <h2>Transcribe</h2>
         <p class="hint">
-          MLX whisper (Apple Silicon). Result cached by source path — other
-          tabs (Translate / Summary / Chapters) reuse it automatically.
+          Result cached by source path — Translate / Summary / Chapters reuse it automatically.
         </p>
 
         <div class="field-row">
+          <label for="transcribe-backend">Backend</label>
+          <select id="transcribe-backend">
+            <option value="mlx">MLX Whisper (local · Apple Silicon)</option>
+            <option value="groq">Groq Whisper (cloud · all platforms)</option>
+          </select>
+        </div>
+        <div class="field-row">
           <label for="transcribe-model">Model</label>
-          <input id="transcribe-model" type="text" value="mlx-community/whisper-large-v3-turbo" />
+          <input id="transcribe-model" type="text" value="mlx-community/whisper-large-v3-turbo" placeholder="e.g. whisper-large-v3-turbo" />
         </div>
         <div class="field-row">
           <label for="transcribe-lang">Language hint</label>
@@ -205,15 +213,17 @@
           <label for="translate-provider">Provider</label>
           <select id="translate-provider">
             <option value="mlx" selected>MLX (local)</option>
+            <option value="groq">Groq</option>
             <option value="claude">Claude</option>
             <option value="openAi">OpenAI</option>
             <option value="gemini">Gemini</option>
             <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
           </select>
         </div>
         <div class="field-row">
           <label for="translate-model">Model</label>
-          <input id="translate-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" />
+          <input id="translate-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
         </div>
         <div class="field-row">
           <label for="translate-target">Target language</label>
@@ -239,15 +249,17 @@
           <label for="summary-provider">Provider</label>
           <select id="summary-provider">
             <option value="mlx" selected>MLX (local)</option>
+            <option value="groq">Groq</option>
             <option value="claude">Claude</option>
             <option value="openAi">OpenAI</option>
             <option value="gemini">Gemini</option>
             <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
           </select>
         </div>
         <div class="field-row">
           <label for="summary-model">Model</label>
-          <input id="summary-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" />
+          <input id="summary-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
         </div>
         <div class="field-row">
           <label for="summary-style">Style</label>
@@ -282,15 +294,17 @@
           <label for="chapters-provider">Provider</label>
           <select id="chapters-provider">
             <option value="mlx" selected>MLX (local)</option>
+            <option value="groq">Groq</option>
             <option value="claude">Claude</option>
             <option value="openAi">OpenAI</option>
             <option value="gemini">Gemini</option>
             <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
           </select>
         </div>
         <div class="field-row">
           <label for="chapters-model">Model</label>
-          <input id="chapters-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" />
+          <input id="chapters-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
         </div>
         <div class="field-row">
           <label for="chapters-language">Output language</label>
@@ -326,10 +340,12 @@
         <div class="field-row">
           <label for="ai-provider">Provider</label>
           <select id="ai-provider">
+            <option value="groq">Groq</option>
             <option value="claude">Claude</option>
             <option value="openAi">OpenAI</option>
             <option value="gemini">Gemini</option>
             <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
           </select>
         </div>
         <div class="field-row">

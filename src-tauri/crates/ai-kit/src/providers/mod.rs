@@ -7,16 +7,20 @@
 
 pub mod claude;
 pub mod gemini;
+pub mod groq;
 pub mod ollama;
 pub mod openai;
+pub mod openrouter;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub mod mlx_lm;
 
 pub use claude::ClaudeProvider;
 pub use gemini::GeminiProvider;
+pub use groq::GroqProvider;
 pub use ollama::OllamaProvider;
 pub use openai::OpenAiProvider;
+pub use openrouter::OpenRouterProvider;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub use mlx_lm::MlxLmProvider;

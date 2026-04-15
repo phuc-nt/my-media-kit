@@ -21,10 +21,10 @@ pub mod wav;
 
 pub use error::MediaError;
 pub use ffmpeg::{
-    build_cut_and_concat_args, build_extract_pcm_args, build_probe_duration_args,
-    resolve_ffmpeg_binary, resolve_ffprobe_binary, FfmpegBinary,
+    build_cut_and_concat_args, build_extract_audio_mp3_args, build_extract_pcm_args,
+    build_probe_duration_args, resolve_ffmpeg_binary, resolve_ffprobe_binary, FfmpegBinary,
 };
-pub use probe::{cut_and_concat, extract_pcm_samples, probe_media, probe_media_full, MediaProbe, MediaProbeFull};
+pub use probe::{cut_and_concat, extract_audio_mp3, extract_pcm_samples, probe_media, probe_media_full, MediaProbe, MediaProbeFull};
 pub use wav::parse_wav_f32_mono;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

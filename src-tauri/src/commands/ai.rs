@@ -15,8 +15,8 @@ use serde::Serialize;
 use tauri::command;
 
 use ai_kit::{
-    ClaudeProvider, GeminiProvider, KeyringSecretStore, OllamaProvider, OpenAiProvider,
-    Provider, ProviderRegistry, ProviderStatus, SecretStore,
+    ClaudeProvider, GeminiProvider, GroqProvider, KeyringSecretStore, OllamaProvider,
+    OpenAiProvider, OpenRouterProvider, Provider, ProviderRegistry, ProviderStatus, SecretStore,
 };
 use creator_core::AiProviderType;
 
@@ -83,6 +83,14 @@ fn build_default_registry() -> ProviderRegistry {
     }
     if let Some(key) = store.get(AiProviderType::Gemini).unwrap_or(None) {
         let p: Arc<dyn Provider> = Arc::new(GeminiProvider::new(key));
+        registry.register(p);
+    }
+    if let Some(key) = store.get(AiProviderType::OpenRouter).unwrap_or(None) {
+        let p: Arc<dyn Provider> = Arc::new(OpenRouterProvider::new(key));
+        registry.register(p);
+    }
+    if let Some(key) = store.get(AiProviderType::Groq).unwrap_or(None) {
+        let p: Arc<dyn Provider> = Arc::new(GroqProvider::new(key));
         registry.register(p);
     }
     // Ollama host comes from keyring too (treated as a "secret" for
