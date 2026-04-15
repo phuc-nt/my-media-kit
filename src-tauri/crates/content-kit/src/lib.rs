@@ -14,9 +14,11 @@
 
 pub mod batch;
 pub mod chapters;
+pub mod duplicate;
 pub mod filler;
 pub mod prompt_cut;
 pub mod summary;
+pub mod transcript_filler_scan;
 pub mod translate;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -16,7 +16,7 @@ pub mod transcription;
 pub use abort::AbortFlag;
 pub use ai::{AiProviderError, AiProviderType};
 pub use cut::{CutReason, CutRegion};
-pub use detection::{AiPromptDetection, FillerDetection};
+pub use detection::{AiPromptDetection, DuplicateDetection, FillerDetection};
 pub use error::CreatorError;
 pub use nle::NleExportTarget;
 pub use silence::{SilenceDetectorConfig, SilenceRegion};

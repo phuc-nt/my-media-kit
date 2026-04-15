@@ -1,100 +1,52 @@
-// AutoCut view — silence detection. Reads the shared source path from
-// source-store; backend cache keeps slider tweaks fast after the first
-// run.
+// AutoCut view — orchestrates silence detection, AI content analysis, and export.
+//
+// Pipeline (mirrors original Swift app):
+//   1. Silence detection  → DSP-based, fully offline, results cached after first run
+//   2. Filler detection   → AI, requires transcript (ờ, ừm, um, uh, …)
+//   3. Re-take detection  → AI, requires transcript (false starts, duplicates)
+//   4. AI Prompt cut      → AI, requires transcript + free-form user instruction
+//   5. Export             → merges all cut regions → MP4 or NLE (FCPXML/Premiere/Resolve)
+//
+// Sub-modules:
+//   autocut-cut-store.js    — shared state for all cut region sets
+//   autocut-silence-panel.js — silence detection UI
+//   autocut-ai-panel.js     — filler / duplicate / AI-prompt UI
+//   autocut-export-panel.js — export stats + buttons
 
-import { getSource, subscribe } from "../source-store.js";
-import {
-  escapeHtml,
-  formatMs,
-  renderErrorBox,
-  requireSource,
-  setStatus,
-} from "../util.js";
-
-const { invoke } = window.__TAURI__.core;
-
-const sliderIds = [
-  ["cfg-threshold", "cfg-threshold-val", (v) => v.toFixed(3)],
-  ["cfg-min-duration", "cfg-min-duration-val", (v) => v.toFixed(1)],
-  ["cfg-pad-left", "cfg-pad-left-val", (v) => v.toFixed(2)],
-  ["cfg-pad-right", "cfg-pad-right-val", (v) => v.toFixed(2)],
-  ["cfg-spike", "cfg-spike-val", (v) => v.toFixed(2)],
-];
-
-function readConfig() {
-  return {
-    threshold: parseFloat(document.getElementById("cfg-threshold").value),
-    useAutoThreshold: document.getElementById("cfg-auto").checked,
-    minimumDurationS: parseFloat(document.getElementById("cfg-min-duration").value),
-    paddingLeftS: parseFloat(document.getElementById("cfg-pad-left").value),
-    paddingRightS: parseFloat(document.getElementById("cfg-pad-right").value),
-    removeShortSpikesS: parseFloat(document.getElementById("cfg-spike").value),
-  };
-}
-
-function renderResults(regions, frameCount, fromCache, container) {
-  if (!regions.length) {
-    container.innerHTML = `<p class="hint">No silence regions detected (${frameCount} frames, ${fromCache ? "cached" : "fresh"}).</p>`;
-    return;
-  }
-  const rows = regions
-    .map(
-      (r, i) =>
-        `<tr><td>${i + 1}</td><td>${formatMs(r.start_ms)}</td><td>${formatMs(r.end_ms)}</td><td>${((r.end_ms - r.start_ms) / 1000).toFixed(2)}s</td></tr>`,
-    )
-    .join("");
-  container.innerHTML = `
-    <table>
-      <thead><tr><th>#</th><th>Start</th><th>End</th><th>Duration</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p class="hint" style="margin-top:8px">
-      ${regions.length} region${regions.length > 1 ? "s" : ""} · ${frameCount} frames · ${fromCache ? "cached PCM" : "fresh extract"}
-    </p>
-  `;
-}
+import { subscribe } from "../source-store.js";
+import { clearAll, setSpeechMask } from "./autocut-cut-store.js";
+import { initSilencePanel } from "./autocut-silence-panel.js";
+import { initAiPanel, setAiPanelVisible } from "./autocut-ai-panel.js";
+import { initExportPanel, refreshExportPanel } from "./autocut-export-panel.js";
 
 export function initAutoCutView() {
-  sliderIds.forEach(([inputId, outputId, fmt]) => {
-    const input = document.getElementById(inputId);
-    const output = document.getElementById(outputId);
-    if (!input || !output) return;
-    const update = () => (output.textContent = fmt(parseFloat(input.value)));
-    input.addEventListener("input", update);
-    update();
-  });
+  // onChanged is called by any detector when its results change.
+  // It re-renders the export panel stats and shows/hides the panel.
+  function onChanged() {
+    refreshExportPanel();
+  }
 
-  const btn = document.getElementById("btn-detect");
-  const status = document.getElementById("detect-status");
-  const container = document.getElementById("silence-results");
+  initSilencePanel(onChanged);
+  initAiPanel(onChanged);
+  initExportPanel();
 
-  btn.addEventListener("click", async () => {
-    const source = getSource();
-    if (!requireSource(source, status)) return;
-    setStatus(status, "detecting…");
-    try {
-      const config = readConfig();
-      const result = await invoke("detect_silence_in_file", {
-        path: source.path,
-        config,
-      });
-      renderResults(
-        result.regions,
-        result.frameCount ?? result.frame_count ?? 0,
-        !!(result.fromCache ?? result.from_cache),
-        container,
-      );
-      setStatus(status, `${result.regions.length} regions`, "ok");
-    } catch (err) {
-      console.error(err);
-      renderErrorBox(container, String(err));
-      setStatus(status, "failed", "err");
-    }
-  });
-
+  // React to source changes: clear all cut state and reset UI.
   subscribe((state) => {
     if (!state.path) {
-      container.innerHTML = `<p class="hint">pick a source video in the sidebar</p>`;
+      document.getElementById("silence-results").innerHTML =
+        `<p class="hint">pick a source video in the sidebar</p>`;
+      document.getElementById("autocut-export").hidden = true;
+      document.getElementById("filler-results").innerHTML = "";
+      document.getElementById("duplicate-results").innerHTML = "";
+      document.getElementById("ai-prompt-results").innerHTML = "";
+      clearAll();
     }
+    // Update speech mask whenever transcript changes so silence cuts
+    // are clipped against actual speech regions at export time.
+    const segments = state.transcript?.segments ?? [];
+    setSpeechMask(segments);
+
+    // AI panel is only usable once a transcript is loaded.
+    setAiPanelVisible(!!state.transcript);
   });
 }

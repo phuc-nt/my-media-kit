@@ -125,6 +125,31 @@ pub fn build_probe_duration_args(input: &Path) -> Vec<String> {
     ]
 }
 
+/// Build an ffprobe command that returns a JSON blob with stream + format
+/// info. Parse result with `probe.rs::parse_probe_full_json`.
+///
+/// JSON shape:
+/// ```json
+/// { "streams": [
+///     {"codec_type":"video","width":1920,"height":1080,"r_frame_rate":"30/1"},
+///     {"codec_type":"audio","channels":2}
+///   ],
+///   "format": {"duration":"87.43"}
+/// }
+/// ```
+pub fn build_probe_full_args(input: &Path) -> Vec<String> {
+    vec![
+        "-v".into(),
+        "error".into(),
+        "-show_streams".into(),
+        "-show_entries".into(),
+        "stream=codec_type,width,height,r_frame_rate,channels:format=duration".into(),
+        "-of".into(),
+        "json".into(),
+        input.to_string_lossy().into_owned(),
+    ]
+}
+
 /// Build an ffmpeg invocation that cuts the input into the specified keep
 /// ranges and concatenates them into `output`. Uses the concat demuxer via
 /// multiple trims in a filter_complex — slower than stream copy but robust

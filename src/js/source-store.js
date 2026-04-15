@@ -7,6 +7,7 @@
 const state = {
   path: "",
   transcript: null, // { language, segments }
+  probe: null,      // { durationMs, width, height, frameRate, audioChannels }
 };
 
 const listeners = new Set();
@@ -29,9 +30,14 @@ export function setSourcePath(path) {
   const trimmed = (path || "").trim();
   if (trimmed === state.path) return;
   state.path = trimmed;
-  // Drop cached transcript whenever the source changes — downstream views
-  // should fall back to whatever the backend has cached.
+  // Drop cached transcript + probe whenever the source changes.
   state.transcript = null;
+  state.probe = null;
+  notify();
+}
+
+export function setProbe(probe) {
+  state.probe = probe ? { ...probe } : null;
   notify();
 }
 

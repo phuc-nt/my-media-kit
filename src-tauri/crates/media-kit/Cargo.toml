@@ -8,6 +8,7 @@ description = "Cross-platform media I/O: ffmpeg sidecar orchestration for audio 
 [dependencies]
 creator-core = { path = "../creator-core" }
 serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

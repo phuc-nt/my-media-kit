@@ -8,20 +8,29 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::command;
 
-use media_kit::{probe::probe_media, probe::extract_pcm_samples};
+use media_kit::{probe::probe_media_full, probe::extract_pcm_samples};
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProbeOutput {
     pub duration_ms: i64,
+    pub width: u32,
+    pub height: u32,
+    pub frame_rate: f64,
+    pub audio_channels: u8,
 }
 
 #[command]
 pub async fn media_probe(path: String) -> Result<ProbeOutput, String> {
-    let probe = probe_media(&PathBuf::from(path))
+    let p = probe_media_full(&PathBuf::from(path))
         .await
         .map_err(|e| e.to_string())?;
     Ok(ProbeOutput {
-        duration_ms: probe.duration_ms,
+        duration_ms: p.duration_ms,
+        width: p.width,
+        height: p.height,
+        frame_rate: p.frame_rate,
+        audio_channels: p.audio_channels,
     })
 }
 

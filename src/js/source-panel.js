@@ -2,7 +2,7 @@
 // user is operating on. Pushes to `source-store` so every feature view
 // can subscribe and auto-refresh its "no source selected" placeholder.
 
-import { getSource, setSourcePath, setTranscript, subscribe } from "./source-store.js";
+import { getSource, setSourcePath, setTranscript, setProbe, subscribe } from "./source-store.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -11,8 +11,28 @@ export function initSourcePanel() {
   const meta = document.getElementById("source-meta");
   const clearBtn = document.getElementById("btn-source-clear");
 
-  input.addEventListener("change", () => setSourcePath(input.value));
-  input.addEventListener("blur", () => setSourcePath(input.value));
+  async function commitSource() {
+    setSourcePath(input.value);
+    const { path } = getSource();
+    if (!path) return;
+    try {
+      const p = await invoke("media_probe", { path });
+      // Normalise to camelCase keys for consistent frontend use
+      setProbe({
+        durationMs: p.duration_ms,
+        width: p.width,
+        height: p.height,
+        frameRate: p.frame_rate,
+        audioChannels: p.audio_channels,
+      });
+    } catch (_) {
+      // Non-fatal: probe failure just means NLE export uses defaults
+      setProbe(null);
+    }
+  }
+
+  input.addEventListener("change", commitSource);
+  input.addEventListener("blur", commitSource);
 
   clearBtn.addEventListener("click", async () => {
     const { path } = getSource();
@@ -30,10 +50,13 @@ export function initSourcePanel() {
       meta.textContent = "no file selected";
       return;
     }
-    const tBit = state.transcript
-      ? ` · transcript cached (${state.transcript.segments.length} segs)`
+    const probeBit = state.probe
+      ? ` · ${fmtDuration(state.probe.durationMs)} · ${state.probe.width}×${state.probe.height}`
       : "";
-    meta.textContent = `${basename(state.path)}${tBit}`;
+    const tBit = state.transcript
+      ? ` · transcript (${state.transcript.segments.length} segs)`
+      : "";
+    meta.textContent = `${basename(state.path)}${probeBit}${tBit}`;
   });
 }
 
@@ -42,4 +65,12 @@ function basename(p) {
   const sep = p.includes("/") ? "/" : "\\";
   const parts = p.split(sep);
   return parts[parts.length - 1] || p;
+}
+
+function fmtDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) return `${h}h${String(m % 60).padStart(2, "0")}m`;
+  return `${m}m${String(s % 60).padStart(2, "0")}s`;
 }

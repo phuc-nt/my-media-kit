@@ -73,6 +73,62 @@
         </div>
 
         <div id="silence-results" class="results"></div>
+
+        <!-- AI Content Analysis — hidden until transcript is loaded -->
+        <div id="autocut-ai" hidden>
+          <h3>Content Analysis <span class="hint">(transcript required)</span></h3>
+
+          <div class="field-row">
+            <label for="autocut-ai-provider">Provider</label>
+            <select id="autocut-ai-provider">
+              <option value="mlx" selected>MLX (local)</option>
+              <option value="claude">Claude</option>
+              <option value="openAi">OpenAI</option>
+              <option value="gemini">Gemini</option>
+              <option value="ollama">Ollama</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label for="autocut-ai-model">Model</label>
+            <input id="autocut-ai-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" />
+          </div>
+
+          <div class="actions">
+            <button id="btn-detect-fillers" class="ghost">Detect Fillers</button>
+            <span id="filler-status" class="status"></span>
+          </div>
+          <div id="filler-results" class="results"></div>
+
+          <div class="actions">
+            <button id="btn-detect-duplicates" class="ghost">Detect Re-takes</button>
+            <span id="duplicate-status" class="status"></span>
+          </div>
+          <div id="duplicate-results" class="results"></div>
+
+          <div class="field-row">
+            <label for="autocut-ai-instruction">AI instruction</label>
+            <input id="autocut-ai-instruction" type="text"
+              placeholder="e.g. Remove intro and any sponsor mentions" />
+          </div>
+          <div class="actions">
+            <button id="btn-ai-prompt-cut" class="ghost">Apply AI Cut</button>
+            <span id="ai-prompt-status" class="status"></span>
+          </div>
+          <div id="ai-prompt-results" class="results"></div>
+        </div>
+
+        <!-- Export panel — hidden until at least one detector has run -->
+        <div id="autocut-export" hidden>
+          <h3>Export</h3>
+          <div id="autocut-export-stats" class="hint"></div>
+          <div class="actions">
+            <button id="btn-export-mp4" class="primary">Export MP4</button>
+            <button id="btn-export-fcp" class="ghost">Export FCPXML</button>
+            <button id="btn-export-premiere" class="ghost">Export Premiere XML</button>
+            <button id="btn-export-resolve" class="ghost">Export Resolve XML</button>
+            <span id="export-status" class="status"></span>
+          </div>
+        </div>
       </section>
 
       <!-- ───────── Transcribe view ───────── -->
@@ -229,8 +285,9 @@
       <section class="feature-view" data-view="export">
         <h2>Export</h2>
         <p class="hint">
-          Direct video export (ffmpeg cut+concat) and NLE project files
-          (FCPXML / xmeml) land in Milestone B.
+          Export controls live in the <strong>AutoCut</strong> tab — run
+          silence detection first, then use the Export section that appears
+          below the results.
         </p>
       </section>
 

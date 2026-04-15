@@ -38,6 +38,8 @@ pub fn run() {
             commands::export_video_direct,
             commands::mlx_whisper_transcribe,
             commands::content_filler_detect,
+            commands::content_duplicate_detect,
+            commands::content_prompt_cut,
             commands::content_summary,
             commands::content_chapters,
             commands::content_translate,

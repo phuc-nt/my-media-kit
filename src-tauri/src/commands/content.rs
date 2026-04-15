@@ -14,14 +14,16 @@ use ai_kit::{Provider, ProviderRegistry, SecretStore, KeyringSecretStore};
 use content_kit::{
     batch::TranscriptBatch,
     chapters::{ChapterList, ChapterRunner, ProviderChapterRunner},
+    duplicate::{AiDuplicateDetector, DuplicateDetector},
     filler::{AiFillerDetector, FillerDetector},
+    prompt_cut::{AiPromptCutter, ProviderCutter},
     summary::{ProviderSummaryRunner, SummaryResult, SummaryRunner, SummaryStyle},
     translate::{
         ProviderTranslateRunner, TranslateOptions, TranslateResult, TranslateRunner,
         DEFAULT_TARGET_LANGUAGE,
     },
 };
-use creator_core::{AiProviderType, FillerDetection, TranscriptionSegment};
+use creator_core::{AiProviderType, AiPromptDetection, DuplicateDetection, FillerDetection, TranscriptionSegment};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,6 +60,61 @@ pub async fn content_filler_detect(request: ContentRequest) -> Result<FillerOutp
         .await
         .map_err(|e| e.to_string())?;
     Ok(FillerOutput { detections })
+}
+
+#[derive(Debug, Serialize)]
+pub struct DuplicateOutput {
+    pub detections: Vec<DuplicateDetection>,
+}
+
+#[command]
+pub async fn content_duplicate_detect(request: ContentRequest) -> Result<DuplicateOutput, String> {
+    let provider = resolve_provider(request.provider).await?;
+    let batch = TranscriptBatch {
+        batch_index: 0,
+        first_segment_index: 0,
+        segments: request.segments,
+    };
+    let detector = AiDuplicateDetector {
+        provider: provider.as_ref(),
+    };
+    let detections = detector
+        .detect(&batch, &request.model)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(DuplicateOutput { detections })
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptCutRequest {
+    pub provider: AiProviderType,
+    pub model: String,
+    pub segments: Vec<TranscriptionSegment>,
+    pub instruction: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PromptCutOutput {
+    pub detections: Vec<AiPromptDetection>,
+}
+
+#[command]
+pub async fn content_prompt_cut(request: PromptCutRequest) -> Result<PromptCutOutput, String> {
+    let provider = resolve_provider(request.provider).await?;
+    let batch = TranscriptBatch {
+        batch_index: 0,
+        first_segment_index: 0,
+        segments: request.segments,
+    };
+    let cutter = ProviderCutter {
+        provider: provider.as_ref(),
+    };
+    let detections = cutter
+        .detect(&batch, &request.instruction, &request.model)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(PromptCutOutput { detections })
 }
 
 #[command]

@@ -68,6 +68,39 @@ impl AiPromptDetection {
     }
 }
 
+/// Output of the duplicate / re-take detector. Each entry represents one
+/// segment range to cut (the abandoned take). The "keep" segment info is
+/// UI-only; for export we only need the remove ranges.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateDetection {
+    pub id: Uuid,
+    pub segment_index: usize,
+    pub cut_start_ms: i64,
+    pub cut_end_ms: i64,
+    pub text: String,
+    pub reason: String,
+}
+
+impl DuplicateDetection {
+    pub fn new(
+        segment_index: usize,
+        cut_start_ms: i64,
+        cut_end_ms: i64,
+        text: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            segment_index,
+            cut_start_ms,
+            cut_end_ms,
+            text: text.into(),
+            reason: reason.into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
