@@ -12,9 +12,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use ai_kit::{CompletionRequest, Provider};
-use creator_core::{AiProviderError, DuplicateDetection};
+use creator_core::{AiProviderError, DuplicateDetection, TranscriptionSegment};
 
-use crate::batch::TranscriptBatch;
+use crate::batch::{chunk_segments, TranscriptBatch};
+
+/// Default batch window for duplicate detection. Duplicate/re-take detection
+/// only makes sense within a ~60 s window (the prompt says "within ~30 s of
+/// each other"). Larger batches add context without helping and slow inference.
+pub const DUPLICATE_BATCH_SECONDS: f64 = 60.0;
 
 pub fn system_prompt() -> &'static str {
     "You are a video editor assistant. Analyze the following transcription and find cases \
@@ -131,6 +136,24 @@ pub trait DuplicateDetector {
         batch: &TranscriptBatch,
         model: &str,
     ) -> Result<Vec<DuplicateDetection>, AiProviderError>;
+
+    /// Chunk `segments` into `max_batch_s`-second windows and accumulate
+    /// duplicate detections. Re-take detection only applies within a batch,
+    /// which mirrors the prompt's own "within ~30 s of each other" rule.
+    async fn detect_transcript(
+        &self,
+        segments: &[TranscriptionSegment],
+        model: &str,
+        max_batch_s: f64,
+    ) -> Result<Vec<DuplicateDetection>, AiProviderError> {
+        let batches = chunk_segments(segments, max_batch_s);
+        let mut all = Vec::new();
+        for batch in &batches {
+            let mut found = self.detect(batch, model).await?;
+            all.append(&mut found);
+        }
+        Ok(all)
+    }
 }
 
 pub struct AiDuplicateDetector<'a> {

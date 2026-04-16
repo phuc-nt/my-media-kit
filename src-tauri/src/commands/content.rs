@@ -14,8 +14,8 @@ use ai_kit::{Provider, ProviderRegistry, SecretStore, KeyringSecretStore};
 use content_kit::{
     batch::TranscriptBatch,
     chapters::{ChapterList, ChapterRunner, ProviderChapterRunner},
-    duplicate::{AiDuplicateDetector, DuplicateDetector},
-    filler::{AiFillerDetector, FillerDetector},
+    duplicate::{AiDuplicateDetector, DuplicateDetector, DUPLICATE_BATCH_SECONDS},
+    filler::{AiFillerDetector, FillerDetector, FILLER_BATCH_SECONDS},
     prompt_cut::{AiPromptCutter, ProviderCutter},
     summary::{ProviderSummaryRunner, SummaryResult, SummaryRunner, SummaryStyle},
     translate::{
@@ -46,17 +46,12 @@ pub struct FillerOutput {
 #[command]
 pub async fn content_filler_detect(request: ContentRequest) -> Result<FillerOutput, String> {
     let provider = resolve_provider(request.provider).await?;
-    let first_segment_index = 0;
-    let batch = TranscriptBatch {
-        batch_index: 0,
-        first_segment_index,
-        segments: request.segments,
-    };
     let detector = AiFillerDetector {
         provider: provider.as_ref(),
     };
+    // Use chunked detection to avoid huge prompts on long transcripts.
     let detections = detector
-        .detect(&batch, &request.model)
+        .detect_transcript(&request.segments, &request.model, FILLER_BATCH_SECONDS)
         .await
         .map_err(|e| e.to_string())?;
     Ok(FillerOutput { detections })
@@ -70,16 +65,12 @@ pub struct DuplicateOutput {
 #[command]
 pub async fn content_duplicate_detect(request: ContentRequest) -> Result<DuplicateOutput, String> {
     let provider = resolve_provider(request.provider).await?;
-    let batch = TranscriptBatch {
-        batch_index: 0,
-        first_segment_index: 0,
-        segments: request.segments,
-    };
     let detector = AiDuplicateDetector {
         provider: provider.as_ref(),
     };
+    // Chunked: re-take detection only applies within a local window anyway.
     let detections = detector
-        .detect(&batch, &request.model)
+        .detect_transcript(&request.segments, &request.model, DUPLICATE_BATCH_SECONDS)
         .await
         .map_err(|e| e.to_string())?;
     Ok(DuplicateOutput { detections })

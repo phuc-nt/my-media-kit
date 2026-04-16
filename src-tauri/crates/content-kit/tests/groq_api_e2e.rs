@@ -38,8 +38,8 @@ use ai_kit::{GroqProvider, KeyringSecretStore, Provider, SecretStore};
 use content_kit::{
     batch::{chunk_segments, TranscriptBatch},
     chapters::{ChapterRunner, ProviderChapterRunner},
-    duplicate::{AiDuplicateDetector, DuplicateDetector},
-    filler::{AiFillerDetector, FillerDetector},
+    duplicate::{AiDuplicateDetector, DuplicateDetector, DUPLICATE_BATCH_SECONDS},
+    filler::{AiFillerDetector, FillerDetector, FILLER_BATCH_SECONDS},
     prompt_cut::{AiPromptCutter, ProviderCutter},
     summary::{ProviderSummaryRunner, SummaryRunner, SummaryStyle},
     translate::{ProviderTranslateRunner, TranslateOptions, TranslateRunner},
@@ -281,10 +281,13 @@ async fn run_pipeline(
         segments: short.clone(),
     };
 
-    // ── 5. Filler ───────────────────────────────────────────────────────
+    // ── 5. Filler ── chunked ─────────────────────────────────────────────
     let detector = AiFillerDetector { provider };
     let t0 = std::time::Instant::now();
-    let filler_ok = match detector.detect(&feature_batch, GROQ_LLM_MODEL).await {
+    let filler_ok = match detector
+        .detect_transcript(&short, GROQ_LLM_MODEL, FILLER_BATCH_SECONDS)
+        .await
+    {
         Ok(f) => {
             println!(
                 "[5/7] Filler: {} hits in {} ms",
@@ -299,10 +302,13 @@ async fn run_pipeline(
         }
     };
 
-    // ── 6. Duplicate ────────────────────────────────────────────────────
+    // ── 6. Duplicate ── chunked ──────────────────────────────────────────
     let detector = AiDuplicateDetector { provider };
     let t0 = std::time::Instant::now();
-    let duplicate_ok = match detector.detect(&feature_batch, GROQ_LLM_MODEL).await {
+    let duplicate_ok = match detector
+        .detect_transcript(&short, GROQ_LLM_MODEL, DUPLICATE_BATCH_SECONDS)
+        .await
+    {
         Ok(d) => {
             println!(
                 "[6/7] Duplicate: {} hits in {} ms",

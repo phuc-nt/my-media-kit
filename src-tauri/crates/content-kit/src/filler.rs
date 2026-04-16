@@ -10,7 +10,14 @@ use serde_json::{json, Value};
 use ai_kit::{CompletionRequest, Provider};
 use creator_core::{AiProviderError, FillerDetection};
 
-use crate::batch::TranscriptBatch;
+use creator_core::TranscriptionSegment;
+
+use crate::batch::{chunk_segments, TranscriptBatch};
+
+/// Default max batch window for filler detection. Smaller than summary/chapters
+/// because filler prompts grow quadratically with word-timestamp count.
+/// 30 s ≈ 3-5 segments — keeps each LLM call under ~2 K tokens.
+pub const FILLER_BATCH_SECONDS: f64 = 30.0;
 
 pub const EN_FILLERS: &[&str] = &[
     "um",
@@ -132,6 +139,25 @@ pub trait FillerDetector {
         batch: &TranscriptBatch,
         model: &str,
     ) -> Result<Vec<FillerDetection>, AiProviderError>;
+
+    /// Convenience: chunk `segments` into `max_batch_s`-second windows,
+    /// call `detect` on each, and flatten results. Avoids sending a huge
+    /// prompt for long transcripts (LLM inference time grows super-linearly
+    /// with context size).
+    async fn detect_transcript(
+        &self,
+        segments: &[TranscriptionSegment],
+        model: &str,
+        max_batch_s: f64,
+    ) -> Result<Vec<FillerDetection>, AiProviderError> {
+        let batches = chunk_segments(segments, max_batch_s);
+        let mut all = Vec::new();
+        for batch in &batches {
+            let mut found = self.detect(batch, model).await?;
+            all.append(&mut found);
+        }
+        Ok(all)
+    }
 }
 
 pub struct AiFillerDetector<'a> {
