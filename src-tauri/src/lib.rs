@@ -47,6 +47,7 @@ pub fn run() {
             commands::get_cached_transcript,
             commands::clear_cache,
             commands::save_text_file,
+            commands::yt_dlp_download,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -19,6 +19,7 @@ pub mod meta;
 pub mod nle;
 pub mod silence;
 pub mod transcription;
+pub mod youtube;
 
 pub use ai::*;
 pub use content::*;
@@ -29,3 +30,4 @@ pub use meta::*;
 pub use nle::*;
 pub use silence::*;
 pub use transcription::*;
+pub use youtube::*;
