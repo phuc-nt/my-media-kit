@@ -22,7 +22,7 @@ pub mod registry;
 pub mod request;
 pub mod secret_store;
 
-pub use providers::{ClaudeProvider, GeminiProvider, GroqProvider, OllamaProvider, OpenAiProvider, OpenRouterProvider};
+pub use providers::{ClaudeProvider, GeminiProvider, OllamaProvider, OpenAiProvider, OpenRouterProvider};
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub use providers::MlxLmProvider;
 pub use registry::{ProviderRegistry, ProviderStatus};

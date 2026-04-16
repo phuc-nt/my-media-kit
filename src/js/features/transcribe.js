@@ -1,8 +1,6 @@
-// Transcribe feature view. Supports two backends:
-//   - mlx  : mlx_whisper_transcribe (Apple Silicon, local, progress events)
-//   - groq : groq_transcribe (all platforms, cloud, single HTTP call)
-//
-// Both backends cache results in source-store so every other tab reuses them.
+// Transcribe feature view. Backend: mlx_whisper_transcribe (Apple Silicon,
+// local, progress events). Results cached in source-store so every other
+// tab reuses them without re-invoking whisper.
 
 import { getSource, setTranscript, subscribe } from "../source-store.js";
 import {
@@ -20,11 +18,7 @@ import {
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-// Default model per backend — auto-filled when user switches backend.
-const BACKEND_MODEL_DEFAULTS = {
-  mlx: "mlx-community/whisper-large-v3-turbo",
-  groq: "whisper-large-v3-turbo",
-};
+const DEFAULT_MLX_MODEL = "mlx-community/whisper-large-v3-turbo";
 
 export function initTranscribeView() {
   const results = document.getElementById("transcribe-results");
@@ -33,7 +27,6 @@ export function initTranscribeView() {
   const btnForce = document.getElementById("btn-transcribe-refresh");
   const btnSaveSrt = document.getElementById("btn-transcribe-save");
   const btnSaveTxt = document.getElementById("btn-transcribe-save-txt");
-  const backendSel = document.getElementById("transcribe-backend");
   const modelInput = document.getElementById("transcribe-model");
 
   const progressBox = document.getElementById("transcribe-progress");
@@ -41,11 +34,7 @@ export function initTranscribeView() {
   const progressLabel = document.getElementById("transcribe-progress-label");
   const progressValue = document.getElementById("transcribe-progress-value");
 
-  // Auto-fill model when backend changes.
-  backendSel.addEventListener("change", () => {
-    const def = BACKEND_MODEL_DEFAULTS[backendSel.value];
-    if (def) modelInput.value = def;
-  });
+  if (!modelInput.value) modelInput.value = DEFAULT_MLX_MODEL;
 
   let currentTranscript = null;
   let running = false;
@@ -101,29 +90,18 @@ export function initTranscribeView() {
     results.innerHTML = "";
     setSaveButtons(false);
 
-    const backend = backendSel.value;
     const model = modelInput.value.trim();
     const langRaw = document.getElementById("transcribe-lang").value.trim();
     const label = force ? "re-running whisper…" : "running whisper…";
     setRunning(true, label);
 
     try {
-      let out;
-      if (backend === "groq") {
-        out = await invoke("groq_transcribe", {
-          path: source.path,
-          language: langRaw || null,
-          model: model || null,
-          force: !!force,
-        });
-      } else {
-        out = await invoke("mlx_whisper_transcribe", {
-          path: source.path,
-          language: langRaw || null,
-          model: model || null,
-          force: !!force,
-        });
-      }
+      const out = await invoke("mlx_whisper_transcribe", {
+        path: source.path,
+        language: langRaw || null,
+        model: model || null,
+        force: !!force,
+      });
       applyTranscript(out);
       setStatus(
         status,

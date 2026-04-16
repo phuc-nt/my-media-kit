@@ -10,7 +10,6 @@ export const PROVIDER_MODEL_DEFAULTS = {
   gemini: "gemini-2.0-flash",
   ollama: "llama3.2",
   openRouter: "anthropic/claude-3-5-sonnet",
-  groq: "llama-3.3-70b-versatile",
 };
 
 // Wire a provider <select> to auto-fill its paired model <input> when the

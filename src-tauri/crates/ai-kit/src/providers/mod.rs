@@ -7,7 +7,6 @@
 
 pub mod claude;
 pub mod gemini;
-pub mod groq;
 pub mod ollama;
 pub mod openai;
 pub mod openrouter;
@@ -17,7 +16,6 @@ pub mod mlx_lm;
 
 pub use claude::ClaudeProvider;
 pub use gemini::GeminiProvider;
-pub use groq::GroqProvider;
 pub use ollama::OllamaProvider;
 pub use openai::OpenAiProvider;
 pub use openrouter::OpenRouterProvider;

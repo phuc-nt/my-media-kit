@@ -59,7 +59,6 @@ impl KeyringSecretStore {
             AiProviderType::Gemini => "ai.provider.gemini.apiKey",
             AiProviderType::Ollama => "ai.provider.ollama.host",
             AiProviderType::OpenRouter => "ai.provider.openrouter.apiKey",
-            AiProviderType::Groq => "ai.provider.groq.apiKey",
             AiProviderType::Mlx => "ai.provider.mlx.modelPath",
             AiProviderType::AppleIntelligence => "ai.provider.appleIntelligence.token",
         }
@@ -118,13 +117,12 @@ mod tests {
             AiProviderType::Gemini,
             AiProviderType::Ollama,
             AiProviderType::OpenRouter,
-            AiProviderType::Groq,
             AiProviderType::Mlx,
             AiProviderType::AppleIntelligence,
         ]
         .into_iter()
         .map(KeyringSecretStore::account_for)
         .collect();
-        assert_eq!(accounts.len(), 8);
+        assert_eq!(accounts.len(), 7);
     }
 }

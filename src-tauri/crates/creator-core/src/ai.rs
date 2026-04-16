@@ -15,9 +15,6 @@ pub enum AiProviderType {
     Ollama,
     /// OpenRouter — routes to 300+ models via OpenAI-compatible API.
     OpenRouter,
-    /// Groq — fast LPU inference + Whisper ASR. Single key for both LLM and
-    /// transcription, available on all platforms.
-    Groq,
     /// MLX (Apple Silicon only). Gated at runtime by ai-kit.
     Mlx,
     /// Apple Intelligence (macOS 26+ Silicon only). Gated at runtime.
@@ -32,7 +29,6 @@ impl AiProviderType {
             Self::Gemini => "Gemini (Google)",
             Self::Ollama => "Ollama (local)",
             Self::OpenRouter => "OpenRouter",
-            Self::Groq => "Groq",
             Self::Mlx => "MLX (local, Apple Silicon)",
             Self::AppleIntelligence => "Apple Intelligence (macOS 26+)",
         }
@@ -41,7 +37,7 @@ impl AiProviderType {
     /// True if this provider stores a secret key in the OS keyring. Local
     /// providers skip the keyring entirely.
     pub fn uses_api_key(&self) -> bool {
-        matches!(self, Self::Claude | Self::OpenAi | Self::Gemini | Self::OpenRouter | Self::Groq)
+        matches!(self, Self::Claude | Self::OpenAi | Self::Gemini | Self::OpenRouter)
     }
 }
 
@@ -73,7 +69,6 @@ mod tests {
         assert!(AiProviderType::OpenAi.uses_api_key());
         assert!(AiProviderType::Gemini.uses_api_key());
         assert!(AiProviderType::OpenRouter.uses_api_key());
-        assert!(AiProviderType::Groq.uses_api_key());
         assert!(!AiProviderType::Ollama.uses_api_key());
         assert!(!AiProviderType::Mlx.uses_api_key());
         assert!(!AiProviderType::AppleIntelligence.uses_api_key());
@@ -86,12 +81,6 @@ mod tests {
     }
 
     #[test]
-    fn groq_serializes_as_camel_case() {
-        let s = serde_json::to_string(&AiProviderType::Groq).unwrap();
-        assert_eq!(s, "\"groq\"");
-    }
-
-    #[test]
     fn display_names_non_empty() {
         for p in [
             AiProviderType::Claude,
@@ -99,7 +88,6 @@ mod tests {
             AiProviderType::Gemini,
             AiProviderType::Ollama,
             AiProviderType::OpenRouter,
-            AiProviderType::Groq,
             AiProviderType::Mlx,
             AiProviderType::AppleIntelligence,
         ] {

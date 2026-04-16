@@ -52,8 +52,7 @@ impl ProviderRegistry {
             | AiProviderType::OpenAi
             | AiProviderType::Gemini
             | AiProviderType::Ollama
-            | AiProviderType::OpenRouter
-            | AiProviderType::Groq => true,
+            | AiProviderType::OpenRouter => true,
             AiProviderType::Mlx => cfg!(all(target_os = "macos", target_arch = "aarch64")),
             AiProviderType::AppleIntelligence => {
                 cfg!(all(target_os = "macos", target_arch = "aarch64"))
@@ -72,7 +71,6 @@ impl ProviderRegistry {
             AiProviderType::Gemini,
             AiProviderType::Ollama,
             AiProviderType::OpenRouter,
-            AiProviderType::Groq,
             AiProviderType::Mlx,
             AiProviderType::AppleIntelligence,
         ] {
@@ -124,7 +122,6 @@ mod tests {
         assert!(ProviderRegistry::is_supported_on_platform(AiProviderType::Gemini));
         assert!(ProviderRegistry::is_supported_on_platform(AiProviderType::Ollama));
         assert!(ProviderRegistry::is_supported_on_platform(AiProviderType::OpenRouter));
-        assert!(ProviderRegistry::is_supported_on_platform(AiProviderType::Groq));
     }
 
     #[test]

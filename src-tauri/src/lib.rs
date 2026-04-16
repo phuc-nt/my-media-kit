@@ -37,7 +37,6 @@ pub fn run() {
             commands::nle_export,
             commands::export_video_direct,
             commands::mlx_whisper_transcribe,
-            commands::groq_transcribe,
             commands::content_filler_detect,
             commands::content_duplicate_detect,
             commands::content_prompt_cut,
