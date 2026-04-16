@@ -16,12 +16,14 @@
 //!                     creator-core models flow downstream
 
 pub mod catalog;
+pub mod openai_whisper;
 pub mod transcriber;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub mod mlx_whisper;
 
 pub use catalog::{ModelCatalog, WhisperModelId};
+pub use openai_whisper::OpenAiWhisperTranscriber;
 pub use transcriber::{NullTranscriber, Transcriber, TranscriptionOptions};
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

@@ -1,6 +1,11 @@
-// Transcribe feature view. Backend: mlx_whisper_transcribe (Apple Silicon,
-// local, progress events). Results cached in source-store so every other
-// tab reuses them without re-invoking whisper.
+// Transcribe feature view.
+//
+// Backends:
+//   mlx    — MlxWhisperTranscriber (local, Apple Silicon, progress events)
+//   openai — OpenAI Whisper API (cloud, any platform, no progress events)
+//
+// Results cached in source-store so Translate / Summary / Chapters reuse
+// them without re-invoking whisper.
 
 import { getSource, setTranscript, subscribe } from "../source-store.js";
 import {
@@ -18,7 +23,10 @@ import {
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-const DEFAULT_MLX_MODEL = "mlx-community/whisper-large-v3-turbo";
+const BACKEND_MODEL_DEFAULTS = {
+  mlx: "mlx-community/whisper-large-v3-turbo",
+  openai: "whisper-1",
+};
 
 export function initTranscribeView() {
   const results = document.getElementById("transcribe-results");
@@ -27,6 +35,7 @@ export function initTranscribeView() {
   const btnForce = document.getElementById("btn-transcribe-refresh");
   const btnSaveSrt = document.getElementById("btn-transcribe-save");
   const btnSaveTxt = document.getElementById("btn-transcribe-save-txt");
+  const backendSel = document.getElementById("transcribe-backend");
   const modelInput = document.getElementById("transcribe-model");
 
   const progressBox = document.getElementById("transcribe-progress");
@@ -34,7 +43,13 @@ export function initTranscribeView() {
   const progressLabel = document.getElementById("transcribe-progress-label");
   const progressValue = document.getElementById("transcribe-progress-value");
 
-  if (!modelInput.value) modelInput.value = DEFAULT_MLX_MODEL;
+  // Sync model input when backend changes.
+  backendSel.addEventListener("change", () => {
+    const def = BACKEND_MODEL_DEFAULTS[backendSel.value];
+    if (def) modelInput.value = def;
+    // Progress bar only meaningful for MLX (streaming); hide hint for openai.
+    progressBox.hidden = true;
+  });
 
   let currentTranscript = null;
   let running = false;
@@ -44,6 +59,8 @@ export function initTranscribeView() {
     btnRun.disabled = on;
     btnForce.disabled = on;
     if (on) {
+      // MLX streams progress; OpenAI is a single blocking call — show
+      // indeterminate bar for both so the UI feels responsive.
       progressBox.hidden = false;
       progressLabel.textContent = label;
       progressBar.className = "progress-bar indeterminate";
@@ -68,11 +85,9 @@ export function initTranscribeView() {
     setSaveButtons(out?.segments?.length > 0);
   }
 
-  // Listen for progress events once. The backend always emits an initial
-  // 0% event before spawning whisper, so we can rely on events to show the
-  // bar even if the first segment takes a while to arrive.
+  // MLX streams segment-level progress events.
   listen("mlx_whisper_progress", (event) => {
-    if (!running) return;
+    if (!running || backendSel.value !== "mlx") return;
     const { percent, current_ms, total_ms } = event.payload || {};
     if (typeof percent !== "number") return;
     progressBar.className = "progress-bar";
@@ -90,18 +105,33 @@ export function initTranscribeView() {
     results.innerHTML = "";
     setSaveButtons(false);
 
+    const backend = backendSel.value;
     const model = modelInput.value.trim();
     const langRaw = document.getElementById("transcribe-lang").value.trim();
-    const label = force ? "re-running whisper…" : "running whisper…";
+    const label =
+      backend === "openai"
+        ? force ? "re-running OpenAI Whisper…" : "running OpenAI Whisper…"
+        : force ? "re-running whisper…" : "running whisper…";
+
     setRunning(true, label);
 
     try {
-      const out = await invoke("mlx_whisper_transcribe", {
-        path: source.path,
-        language: langRaw || null,
-        model: model || null,
-        force: !!force,
-      });
+      let out;
+      if (backend === "openai") {
+        out = await invoke("openai_whisper_transcribe", {
+          path: source.path,
+          language: langRaw || null,
+          model: model || null,
+          force: !!force,
+        });
+      } else {
+        out = await invoke("mlx_whisper_transcribe", {
+          path: source.path,
+          language: langRaw || null,
+          model: model || null,
+          force: !!force,
+        });
+      }
       applyTranscript(out);
       setStatus(
         status,
@@ -128,10 +158,7 @@ export function initTranscribeView() {
       ? segmentsToSrt(currentTranscript.segments)
       : segmentsToPlainText(currentTranscript.segments);
     try {
-      const written = await invoke("save_text_file", {
-        path: target,
-        content,
-      });
+      const written = await invoke("save_text_file", { path: target, content });
       showToast(`saved → ${written}`, "ok");
     } catch (e) {
       console.error(e);
@@ -144,8 +171,7 @@ export function initTranscribeView() {
   btnSaveSrt.addEventListener("click", () => save("srt"));
   btnSaveTxt.addEventListener("click", () => save("txt"));
 
-  // If user navigates back to this tab after picking a new source, refresh
-  // the placeholder or load the cached transcript.
+  // Refresh view when source changes.
   subscribe(async (state) => {
     if (running) return;
     if (!state.path) {
@@ -175,7 +201,9 @@ export function initTranscribeView() {
 }
 
 function renderSegments(out, container) {
-  const lang = out.language ? `<p class="hint">language: <code>${escapeHtml(out.language)}</code></p>` : "";
+  const lang = out.language
+    ? `<p class="hint">language: <code>${escapeHtml(out.language)}</code></p>`
+    : "";
   const rows = out.segments
     .map(
       (s) =>

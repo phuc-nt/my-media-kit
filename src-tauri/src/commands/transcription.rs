@@ -153,6 +153,50 @@ pub async fn mlx_whisper_transcribe(
     Err("mlx_whisper backend is only available on Apple Silicon (macOS aarch64)".into())
 }
 
+/// Transcribe using OpenAI Whisper API (`whisper-1`). Works on all platforms.
+/// Requires an OpenAI API key stored in the keyring.
+/// The audio is first extracted to a 32 kbps mono MP3 to stay under the
+/// 25 MB API limit (≈14 MB / hour of audio).
+#[command]
+pub async fn openai_whisper_transcribe(
+    path: String,
+    language: Option<String>,
+    model: Option<String>,
+    force: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<TranscribeOutput, String> {
+    use ai_kit::{KeyringSecretStore, SecretStore};
+    use creator_core::AiProviderType;
+    use transcription_kit::OpenAiWhisperTranscriber;
+
+    let source = PathBuf::from(&path);
+    let refresh = force.unwrap_or(false);
+
+    if !refresh {
+        if let Some(hit) = state.transcript_get(&source) {
+            return Ok(TranscribeOutput::from_entry(hit, true));
+        }
+    }
+
+    let store = KeyringSecretStore::new();
+    let api_key = store
+        .get(AiProviderType::OpenAi)
+        .map_err(|e| format!("keyring error: {e}"))?
+        .ok_or_else(|| "OpenAI API key not configured — add it in Settings".to_string())?;
+
+    let (audio_path, _audio_guard) = prepare_audio(&source).await?;
+
+    let transcriber = OpenAiWhisperTranscriber { api_key };
+    let segments = transcriber
+        .transcribe(&audio_path, language.as_deref(), model.as_deref())
+        .await?;
+
+    let language = segments.iter().find_map(|s| s.language.clone());
+    let entry = crate::state::TranscriptEntry { language, segments };
+    let arc = state.transcript_put(source, entry);
+    Ok(TranscribeOutput::from_entry(arc, false))
+}
+
 /// Return the cached transcript for a source path, or `None` if we have
 /// not transcribed it in this session.
 #[command]
