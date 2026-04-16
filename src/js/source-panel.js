@@ -26,9 +26,19 @@ export function initSourcePanel() {
         frameRate: p.frame_rate,
         audioChannels: p.audio_channels,
       });
-    } catch (_) {
-      // Non-fatal: probe failure just means NLE export uses defaults
+      meta.dataset.error = "";
+    } catch (err) {
       setProbe(null);
+      // Surface fatal errors (file not found) so the user catches a bad
+      // path before invoking other features; ignore non-fatal probe issues
+      // (NLE export will fall back to defaults in that case).
+      const msg = String(err);
+      if (/file not found|No such file|FileNotFound/i.test(msg)) {
+        meta.dataset.error = msg;
+        meta.textContent = msg;
+      } else {
+        meta.dataset.error = "";
+      }
     }
   }
 
@@ -71,6 +81,13 @@ export function initSourcePanel() {
   subscribe((state) => {
     if (!state.path) {
       meta.textContent = "no file selected";
+      meta.dataset.error = "";
+      return;
+    }
+    // Don't clobber an active error message — commitSource sets it when
+    // probe fails with a fatal "file not found".
+    if (meta.dataset.error) {
+      meta.textContent = meta.dataset.error;
       return;
     }
     const probeBit = state.probe

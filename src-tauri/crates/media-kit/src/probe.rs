@@ -41,8 +41,25 @@ pub struct MediaProbeFull {
     pub audio_channels: u8,
 }
 
+/// Validate that `input` exists on disk before invoking ffmpeg/ffprobe.
+/// Returns a `FileNotFound` error containing both the user-supplied path
+/// and its resolved absolute form so the UI can show a useful message.
+fn ensure_input_exists(input: &Path) -> Result<(), MediaError> {
+    if input.exists() {
+        return Ok(());
+    }
+    let resolved = std::env::current_dir()
+        .map(|cwd| cwd.join(input))
+        .unwrap_or_else(|_| input.to_path_buf());
+    Err(MediaError::FileNotFound {
+        input: input.display().to_string(),
+        resolved: resolved.display().to_string(),
+    })
+}
+
 /// Probe the duration of a media file via ffprobe.
 pub async fn probe_media(input: &Path) -> Result<MediaProbe, MediaError> {
+    ensure_input_exists(input)?;
     let bin = resolve_ffprobe_binary()?;
     let args = build_probe_duration_args(input);
 
@@ -75,6 +92,7 @@ pub async fn probe_media(input: &Path) -> Result<MediaProbe, MediaError> {
 /// Probe full media metadata: duration, video resolution + fps, audio channels.
 /// One ffprobe call; falls back to defaults for any missing stream/field.
 pub async fn probe_media_full(input: &Path) -> Result<MediaProbeFull, MediaError> {
+    ensure_input_exists(input)?;
     let bin = resolve_ffprobe_binary()?;
     let args = build_probe_full_args(input);
 
@@ -161,6 +179,7 @@ fn parse_rational_fps(s: &str) -> Option<f64> {
 /// ffmpeg to produce a WAV bytestream on stdout, then feeds it through the
 /// in-tree WAV parser.
 pub async fn extract_pcm_samples(input: &Path) -> Result<Vec<f32>, MediaError> {
+    ensure_input_exists(input)?;
     let bin = resolve_ffmpeg_binary()?;
     let args = build_extract_pcm_args(input);
 

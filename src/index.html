@@ -23,12 +23,14 @@
       </section>
 
       <nav class="feature-list" role="tablist">
-        <button class="feature-item active" data-feature="autocut" role="tab">AutoCut</button>
-        <button class="feature-item" data-feature="transcribe" role="tab">Transcribe</button>
+        <!-- AutoCut + Export hidden: pipeline still in development. Enable
+             by removing `hidden` once silence-detection UX is finalised. -->
+        <button class="feature-item" data-feature="autocut" role="tab" hidden>AutoCut</button>
+        <button class="feature-item active" data-feature="transcribe" role="tab">Transcribe</button>
         <button class="feature-item" data-feature="translate" role="tab">Translate</button>
         <button class="feature-item" data-feature="summary" role="tab">Summary</button>
         <button class="feature-item" data-feature="chapters" role="tab">Chapters</button>
-        <button class="feature-item" data-feature="export" role="tab">Export</button>
+        <button class="feature-item" data-feature="export" role="tab" hidden>Export</button>
         <button class="feature-item" data-feature="settings" role="tab">Settings</button>
       </nav>
 
@@ -36,8 +38,8 @@
     </aside>
 
     <main id="detail" aria-live="polite">
-      <!-- ───────── AutoCut view ───────── -->
-      <section class="feature-view active" data-view="autocut">
+      <!-- ───────── AutoCut view (hidden — see nav comment) ───────── -->
+      <section class="feature-view" data-view="autocut">
         <h2>AutoCut</h2>
         <p class="hint">
           Multi-pass pipeline: silence detection (offline, cached) →
@@ -159,7 +161,7 @@
       </section>
 
       <!-- ───────── Transcribe view ───────── -->
-      <section class="feature-view" data-view="transcribe">
+      <section class="feature-view active" data-view="transcribe">
         <h2>Transcribe</h2>
         <p class="hint">
           Result cached by source path — Translate / Summary / Chapters reuse it automatically.

@@ -26,6 +26,9 @@ pub enum MediaError {
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
 
+    #[error("file not found: {input} (resolved to {resolved})")]
+    FileNotFound { input: String, resolved: String },
+
     #[error("operation cancelled")]
     Cancelled,
 }
