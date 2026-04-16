@@ -111,7 +111,8 @@ pub fn response_schema() -> Value {
                 "items": { "type": "string" }
             }
         },
-        "required": ["translations"]
+        "required": ["translations"],
+        "additionalProperties": false
     })
 }
 

@@ -90,7 +90,8 @@ pub fn response_schema() -> Value {
     json!({
         "type": "object",
         "properties": { "text": { "type": "string" } },
-        "required": ["text"]
+        "required": ["text"],
+        "additionalProperties": false
     })
 }
 

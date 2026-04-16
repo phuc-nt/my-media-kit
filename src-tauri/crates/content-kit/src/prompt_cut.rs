@@ -46,11 +46,13 @@ pub fn response_schema() -> Value {
                         "text":         { "type": "string" },
                         "reason":       { "type": "string" }
                     },
-                    "required": ["segmentIndex", "cutStartMs", "cutEndMs", "text", "reason"]
+                    "required": ["segmentIndex", "cutStartMs", "cutEndMs", "text", "reason"],
+                    "additionalProperties": false
                 }
             }
         },
-        "required": ["detections"]
+        "required": ["detections"],
+        "additionalProperties": false
     })
 }
 

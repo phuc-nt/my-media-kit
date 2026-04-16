@@ -105,11 +105,13 @@ pub fn response_schema() -> Value {
                         "text":         { "type": "string" },
                         "fillerWords":  { "type": "array", "items": { "type": "string" } }
                     },
-                    "required": ["segmentIndex", "cutStartMs", "cutEndMs", "text", "fillerWords"]
+                    "required": ["segmentIndex", "cutStartMs", "cutEndMs", "text", "fillerWords"],
+                    "additionalProperties": false
                 }
             }
         },
-        "required": ["detections"]
+        "required": ["detections"],
+        "additionalProperties": false
     })
 }
 

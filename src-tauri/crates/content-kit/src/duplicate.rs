@@ -88,15 +88,18 @@ pub fn response_schema() -> Value {
                                     "text":         { "type": "string" },
                                     "reason":       { "type": "string" }
                                 },
-                                "required": ["segmentIndex", "cutStartMs", "cutEndMs", "text", "reason"]
+                                "required": ["segmentIndex", "cutStartMs", "cutEndMs", "text", "reason"],
+                                "additionalProperties": false
                             }
                         }
                     },
-                    "required": ["keepSegmentIndex", "keepStartMs", "keepEndMs", "removeSegments"]
+                    "required": ["keepSegmentIndex", "keepStartMs", "keepEndMs", "removeSegments"],
+                    "additionalProperties": false
                 }
             }
         },
-        "required": ["duplicates"]
+        "required": ["duplicates"],
+        "additionalProperties": false
     })
 }
 

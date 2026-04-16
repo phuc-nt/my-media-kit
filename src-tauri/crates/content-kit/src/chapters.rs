@@ -56,12 +56,14 @@ pub fn response_schema() -> Value {
                         "timestampMs": { "type": "integer", "minimum": 0 },
                         "title":       { "type": "string",  "minLength": 1 }
                     },
-                    "required": ["timestampMs", "title"]
+                    "required": ["timestampMs", "title"],
+                    "additionalProperties": false
                 },
                 "minItems": 1
             }
         },
-        "required": ["chapters"]
+        "required": ["chapters"],
+        "additionalProperties": false
     })
 }
 
