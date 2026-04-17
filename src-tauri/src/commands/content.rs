@@ -13,15 +13,19 @@ use tauri::command;
 use ai_kit::{Provider, ProviderRegistry, SecretStore, KeyringSecretStore};
 use content_kit::{
     batch::TranscriptBatch,
+    blog_article::{BlogArticle, BlogArticleRunner, ProviderBlogArticleRunner},
     chapters::{ChapterList, ChapterRunner, ProviderChapterRunner},
     duplicate::{AiDuplicateDetector, DuplicateDetector, DUPLICATE_BATCH_SECONDS},
     filler::{AiFillerDetector, FillerDetector, FILLER_BATCH_SECONDS},
     prompt_cut::{AiPromptCutter, ProviderCutter},
     summary::{ProviderSummaryRunner, SummaryResult, SummaryRunner, SummaryStyle},
+    transcript_filler_scan,
     translate::{
         ProviderTranslateRunner, TranslateOptions, TranslateResult, TranslateRunner,
         DEFAULT_TARGET_LANGUAGE,
     },
+    viral_clips::{ProviderViralClipRunner, ViralClipList, ViralClipRunner},
+    youtube_pack::{ProviderYouTubePackRunner, YouTubePack, YouTubePackRunner},
 };
 use creator_core::{AiProviderType, AiPromptDetection, DuplicateDetection, FillerDetection, TranscriptionSegment};
 
@@ -173,6 +177,83 @@ pub async fn content_translate(
         )
         .await
         .map_err(|e| e.to_string())
+}
+
+#[command]
+pub async fn content_youtube_pack(request: ContentRequest) -> Result<YouTubePack, String> {
+    let provider = resolve_provider(request.provider).await?;
+    let language = request.language.unwrap_or_else(|| "English".into());
+    let runner = ProviderYouTubePackRunner {
+        provider: provider.as_ref(),
+    };
+    runner
+        .run(&request.segments, &language, &request.model)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[command]
+pub async fn content_viral_clips(request: ContentRequest) -> Result<ViralClipList, String> {
+    let provider = resolve_provider(request.provider).await?;
+    let language = request.language.unwrap_or_else(|| "English".into());
+    let runner = ProviderViralClipRunner {
+        provider: provider.as_ref(),
+    };
+    runner
+        .run(&request.segments, &language, &request.model)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[command]
+pub async fn content_blog_article(request: ContentRequest) -> Result<BlogArticle, String> {
+    let provider = resolve_provider(request.provider).await?;
+    let language = request.language.unwrap_or_else(|| "English".into());
+    let runner = ProviderBlogArticleRunner {
+        provider: provider.as_ref(),
+    };
+    runner
+        .run(&request.segments, &language, &request.model, 60.0)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[command]
+pub async fn content_clean_transcript(
+    segments: Vec<TranscriptionSegment>,
+) -> Result<Vec<TranscriptionSegment>, String> {
+    let fillers = transcript_filler_scan::scan_word_timestamps(&segments, 100);
+    if fillers.is_empty() {
+        return Ok(segments);
+    }
+    let cleaned = segments
+        .iter()
+        .map(|seg| {
+            if seg.words.is_empty() {
+                return seg.clone();
+            }
+            let clean_words: Vec<_> = seg
+                .words
+                .iter()
+                .filter(|w| {
+                    !fillers
+                        .iter()
+                        .any(|f| w.start_ms >= f.cut_start_ms && w.end_ms <= f.cut_end_ms)
+                })
+                .cloned()
+                .collect();
+            let text = clean_words
+                .iter()
+                .map(|w| w.text.trim())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let mut s = seg.clone();
+            s.text = text;
+            s.words = clean_words;
+            s
+        })
+        .collect();
+    Ok(cleaned)
 }
 
 fn parse_summary_style(raw: Option<&str>) -> SummaryStyle {

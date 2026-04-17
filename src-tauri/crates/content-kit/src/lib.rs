@@ -13,6 +13,7 @@
 //! while chapters use a 3-pass consolidation flow.
 
 pub mod batch;
+pub mod blog_article;
 pub mod chapters;
 pub mod duplicate;
 pub mod filler;
@@ -20,5 +21,7 @@ pub mod prompt_cut;
 pub mod summary;
 pub mod transcript_filler_scan;
 pub mod translate;
+pub mod viral_clips;
+pub mod youtube_pack;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

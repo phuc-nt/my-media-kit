@@ -73,9 +73,12 @@ export function initTranscribeView() {
     }
   }
 
+  const btnSaveClean = document.getElementById("btn-transcribe-save-clean");
+
   function setSaveButtons(enabled) {
     btnSaveSrt.disabled = !enabled;
     btnSaveTxt.disabled = !enabled;
+    btnSaveClean.disabled = !enabled;
   }
 
   function applyTranscript(out) {
@@ -170,6 +173,23 @@ export function initTranscribeView() {
   btnForce.addEventListener("click", () => run(true));
   btnSaveSrt.addEventListener("click", () => save("srt"));
   btnSaveTxt.addEventListener("click", () => save("txt"));
+  btnSaveClean.addEventListener("click", async () => {
+    if (!currentTranscript?.segments?.length) return;
+    const source = getSource();
+    if (!source?.path) return;
+    try {
+      const cleaned = await invoke("content_clean_transcript", {
+        segments: currentTranscript.segments,
+      });
+      const target = deriveSiblingPath(source.path, ".clean.srt");
+      const content = segmentsToSrt(cleaned);
+      const written = await invoke("save_text_file", { path: target, content });
+      showToast(`saved clean → ${written}`, "ok");
+    } catch (e) {
+      console.error(e);
+      showToast(`clean save failed: ${e}`, "err");
+    }
+  });
 
   // Refresh view when source changes.
   subscribe(async (state) => {

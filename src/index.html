@@ -31,6 +31,9 @@
         <button class="feature-item" data-feature="summary" role="tab">Summary</button>
         <button class="feature-item" data-feature="chapters" role="tab">Chapters</button>
         <button class="feature-item" data-feature="export" role="tab" hidden>Export</button>
+        <button class="feature-item" data-feature="youtube-pack" role="tab">YT Pack</button>
+        <button class="feature-item" data-feature="viral-clips" role="tab">Viral Clips</button>
+        <button class="feature-item" data-feature="blog-article" role="tab">Blog</button>
         <button class="feature-item" data-feature="settings" role="tab">Settings</button>
       </nav>
 
@@ -187,6 +190,7 @@
           <button id="btn-transcribe-refresh" class="ghost">Force re-run</button>
           <button id="btn-transcribe-save" class="ghost" disabled>Save .srt</button>
           <button id="btn-transcribe-save-txt" class="ghost" disabled>Save .txt</button>
+          <button id="btn-transcribe-save-clean" class="ghost" disabled>Save clean .srt</button>
           <span id="transcribe-status" class="status">ready</span>
         </div>
 
@@ -316,6 +320,113 @@
         </div>
 
         <div id="chapters-results" class="results"></div>
+      </section>
+
+      <!-- ───────── YouTube Pack view ───────── -->
+      <section class="feature-view" data-view="youtube-pack">
+        <h2>YouTube Content Pack</h2>
+        <p class="hint">
+          Titles, description, and SEO tags — all from your transcript in one shot.
+        </p>
+
+        <div class="field-row">
+          <label for="ytpack-provider">Provider</label>
+          <select id="ytpack-provider">
+            <option value="mlx" selected>MLX (local)</option>
+            <option value="claude">Claude</option>
+            <option value="openAi">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="ytpack-model">Model</label>
+          <input id="ytpack-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
+        </div>
+        <div class="field-row">
+          <label for="ytpack-language">Output language</label>
+          <input id="ytpack-language" type="text" value="Vietnamese" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-ytpack" class="primary">Generate pack</button>
+          <button id="btn-ytpack-copy" class="ghost">Copy all</button>
+          <span id="ytpack-status" class="status">ready</span>
+        </div>
+
+        <div id="ytpack-results" class="results"></div>
+      </section>
+
+      <!-- ───────── Viral Clips view ───────── -->
+      <section class="feature-view" data-view="viral-clips">
+        <h2>Viral Clips</h2>
+        <p class="hint">
+          Best 15-60s moments for YouTube Shorts, TikTok, and Reels.
+        </p>
+
+        <div class="field-row">
+          <label for="viral-provider">Provider</label>
+          <select id="viral-provider">
+            <option value="mlx" selected>MLX (local)</option>
+            <option value="claude">Claude</option>
+            <option value="openAi">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="viral-model">Model</label>
+          <input id="viral-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
+        </div>
+        <div class="field-row">
+          <label for="viral-language">Output language</label>
+          <input id="viral-language" type="text" value="Vietnamese" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-viral" class="primary">Find viral clips</button>
+          <span id="viral-status" class="status">ready</span>
+        </div>
+
+        <div id="viral-results" class="results"></div>
+      </section>
+
+      <!-- ───────── Blog Article view ───────── -->
+      <section class="feature-view" data-view="blog-article">
+        <h2>Blog Article</h2>
+        <p class="hint">
+          Convert transcript into a structured article with headings and prose.
+        </p>
+
+        <div class="field-row">
+          <label for="blog-provider">Provider</label>
+          <select id="blog-provider">
+            <option value="mlx" selected>MLX (local)</option>
+            <option value="claude">Claude</option>
+            <option value="openAi">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="ollama">Ollama</option>
+            <option value="openRouter">OpenRouter</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="blog-model">Model</label>
+          <input id="blog-model" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
+        </div>
+        <div class="field-row">
+          <label for="blog-language">Output language</label>
+          <input id="blog-language" type="text" value="Vietnamese" />
+        </div>
+
+        <div class="actions">
+          <button id="btn-blog" class="primary">Generate article</button>
+          <button id="btn-blog-copy" class="ghost">Copy markdown</button>
+          <span id="blog-status" class="status">ready</span>
+        </div>
+
+        <div id="blog-results" class="results"></div>
       </section>
 
       <!-- ───────── Export view ───────── -->
