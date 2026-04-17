@@ -1,6 +1,35 @@
 # Getting Started
 
-## Install
+## Download & Install
+
+### macOS
+1. Download `CreatorUtils_x.x.x_aarch64.dmg` (Apple Silicon) or `CreatorUtils_x.x.x_x64.dmg` (Intel) from [Releases](https://github.com/phuc-nt/my-media-kit/releases)
+2. Open the `.dmg` and drag **CreatorUtils** to Applications
+3. First launch: right-click → Open (macOS Gatekeeper requires this for the first run)
+
+### Windows
+1. Download `CreatorUtils_x.x.x_x64-setup.exe` from [Releases](https://github.com/phuc-nt/my-media-kit/releases)
+2. Run the installer and follow the prompts
+
+### Auto-update
+The app checks for updates automatically. When a new version is available, you'll be prompted to install it.
+
+---
+
+## System dependencies
+
+You need `ffmpeg` on your system for video processing:
+
+| OS | Install |
+|----|---------|
+| macOS | `brew install ffmpeg` |
+| Windows | Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH |
+
+Optional: install `yt-dlp` for YouTube URL support (`pip install yt-dlp`).
+
+---
+
+## Build from source (developers)
 
 ### 1. System dependencies
 

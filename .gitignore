@@ -38,6 +38,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# ── Tauri updater signing key ────────────────────────────────────────────────
+src-tauri/.tauri-private-key
+
 # ── Env / secrets ────────────────────────────────────────────────────────────
 .env
 .env.*
