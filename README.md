@@ -1,122 +1,99 @@
-# my-media-kit
+<p align="center">
+  <img src="assets/logo/media-file-3d.svg" width="96" alt="CreatorUtils logo" />
+</p>
 
-Cross-platform creator video utilities — transcription, silence detection, auto-cut, AI summaries, and NLE round-trip export. Built on **Tauri v2 (Rust backend + HTML/JS frontend)**, with an MLX-first default path on Apple Silicon.
+<h1 align="center">CreatorUtils</h1>
 
-> Status: pre-release scaffolding. Core pipelines (silence detection, ffmpeg I/O, NLE XML export, AI provider protocol, MLX transcription + LLM) work end-to-end against real media and a local `mlx_lm.server` / `mlx_whisper`. Tauri UI is minimal. Not yet packaged for distribution.
+<p align="center">
+  All-in-one video toolkit for content creators.<br/>
+  Transcribe, translate, summarize, generate chapters, find viral clips — locally or via cloud APIs.
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue" />
+  <img src="https://img.shields.io/badge/license-MIT-green" />
+  <img src="https://img.shields.io/badge/version-0.1.0-orange" />
+</p>
 
-### Non-LLM (100 % offline)
+---
 
-- **Silence detection** — RMS + auto-threshold (P15 noise floor, P75 speech level) + spike removal + configurable padding. Sub-100 ms slider re-runs via cached RMS.
-- **Direct video export** — ffmpeg cut-and-concat pipeline to a final `.mp4` / `.mov` from a list of keep ranges.
-- **NLE export** — FCPXML 1.11 (Final Cut Pro) + xmeml v5 (Premiere / DaVinci Resolve). Non-destructive: the output references your source media.
-- **Media probe + PCM extraction** — ffmpeg / ffprobe sidecar wrappers; 16 kHz mono f32 suitable for whisper.
+## What it does
 
-### LLM-driven (Apple Silicon ships local MLX first)
+Drop a video file (or paste a YouTube URL) and get:
 
-- **Transcription** — `mlx-whisper` with `whisper-large-v3-turbo`, word-level timestamps, bilingual EN / VN.
-- **Filler detection** — identify and cut filler words (um, uh, ờ, à, thì, …) via a structured-output prompt.
-- **AI free-form cut** — user instruction like *"remove the intro and sponsor mentions"* becomes a list of time ranges.
-- **Summary** — brief / key points / action items, single-pass or two-pass consolidated for long videos.
-- **Chapters** — YouTube-style description with timestamps, first chapter pinned to `00:00`.
+| Feature | Description |
+|---------|-------------|
+| **Transcribe** | Speech-to-text with word-level timestamps (MLX Whisper local or OpenAI cloud) |
+| **Translate** | Translate transcript to any language, auto-skips if source matches target |
+| **Summary** | Brief narrative, key points, or action items |
+| **Chapters** | YouTube-ready chapter markers (first pinned to 0:00) |
+| **YouTube Pack** | 5 title suggestions + full description + SEO tags in one shot |
+| **Viral Clips** | Best 15-60s moments for Shorts/Reels/TikTok with hooks and captions |
+| **Blog Article** | Structured article with headings and prose from your video |
+| **Clean Transcript** | Rule-based filler word removal (no AI needed) |
 
-All LLM features also work with **Claude**, **OpenAI**, **Gemini**, or **Ollama** when configured — just not the default on Apple Silicon. See `docs/architecture-decisions.md` (ADR-012).
-
-## Architecture at a glance
+## How it works
 
 ```
-src-tauri/
-├── src/
-│   ├── lib.rs                 # Tauri builder + command registry
-│   ├── main.rs
-│   └── commands/              # thin command wrappers; no business logic here
-│       ├── meta.rs
-│       ├── media.rs
-│       ├── silence.rs
-│       ├── transcription.rs   # Apple Silicon: mlx_whisper sidecar
-│       ├── content.rs         # filler / summary / chapters via ai-kit
-│       ├── ai.rs              # provider status + keyring helpers
-│       ├── nle.rs             # FCPXML / xmeml export
-│       └── export.rs          # direct video cut+concat
-└── crates/
-    ├── creator-core/          # domain types, errors, abort flag
-    ├── silence-kit/           # pure DSP silence detection
-    ├── media-kit/             # ffmpeg sidecar + WAV parser
-    ├── transcription-kit/     # Transcriber trait + mlx_whisper backend
-    ├── ai-kit/                # Claude / OpenAI / Gemini / Ollama / MLX
-    ├── content-kit/           # filler, ai-prompt, summary, chapters
-    └── nle-kit/               # FCPXML + xmeml builders
-
-src/                           # frontend (HTML / CSS / JS)
-├── index.html
-├── styles/main.css
-└── js/
-    ├── main.js
-    ├── sidebar.js
-    ├── header.js
-    └── features/
-        ├── autocut.js
-        └── settings.js
+Video / YouTube URL
+        |
+    Transcribe (MLX local or OpenAI cloud)
+        |
+    ┌───┴────────────────────────────┐
+    |   All features share the       |
+    |   cached transcript — set      |
+    |   provider + model once in     |
+    |   the sidebar, click any tab   |
+    └────────────────────────────────┘
 ```
 
-Every Rust crate is independently testable via `cargo test -p <crate>`. Platform-bound backends (ffmpeg, mlx_whisper, mlx_lm.server, whisper-rs) live behind traits so most code paths run without them.
+One source. One config. Every feature is one click away.
 
-## Getting started
+## Quick start
 
 ### Prerequisites
 
-- Rust ≥ 1.80 (`rustup install stable`)
-- Node ≥ 20 + npm (Tauri CLI + frontend tooling)
-- `ffmpeg` + `ffprobe` on PATH (or via `FFMPEG` / `FFPROBE` env vars)
-- **Apple Silicon (recommended):** `pip install mlx-lm mlx-whisper` for the default local stack
-- **Other platforms:** `brew install ollama` or an API key for Claude / OpenAI / Gemini
+- [Rust](https://rustup.rs/) 1.80+
+- [Node.js](https://nodejs.org/) 20+ with npm
+- `ffmpeg` + `ffprobe` on PATH
 
-### Build + dev
+**Apple Silicon (local AI):**
+```bash
+pip install mlx-lm mlx-whisper
+```
+
+**Any platform (cloud AI):**
+Set an API key in Settings (OpenAI recommended — covers both transcription and all AI features).
+
+### Run
 
 ```bash
-# 1. Install frontend deps
 npm install
-
-# 2. Run tests
-cd src-tauri
-cargo test --workspace
-
-# 3. Dev window
-cd ..
-npm run dev     # spins up tauri dev
+npm run dev
 ```
 
-To exercise the real-media integration tests:
+See [Getting Started](user-docs/getting-started.md) for detailed setup.
 
-```bash
-CREATOR_UTILS_TEST_MEDIA=/absolute/path/to/video.mov cargo test --workspace
-```
+## AI Providers
 
-To try the MLX LLM path, start a local server before running content-feature commands:
-
-```bash
-mlx_lm.server \
-  --model mlx-community/Qwen2.5-7B-Instruct-4bit \
-  --port 8080 \
-  --host 127.0.0.1
-```
+| Provider | Transcription | AI Features | Setup |
+|----------|:---:|:---:|-------|
+| MLX (local) | Yes | Yes | Apple Silicon + pip install |
+| OpenAI | Yes (Whisper) | Yes (GPT-4o) | API key |
+| Claude | - | Yes | API key |
+| Gemini | - | Yes | API key |
+| Ollama | - | Yes | Local install |
+| OpenRouter | - | Yes | API key |
 
 ## Documentation
 
-- **[docs/architecture-decisions.md](docs/architecture-decisions.md)** — ADRs explaining the tech stack, scope, and defaults.
-- **[docs/llm-tasks.md](docs/llm-tasks.md)** — catalog of features that call an LLM and the viable model choices per feature.
-- **[docs/dev-log/](docs/dev-log/)** — daily log of what was actually shipped, per session.
+- [Getting Started](user-docs/getting-started.md) — install, configure, first run
+- [Features Guide](user-docs/features.md) — what each feature does and how to use it
 
-## Platform support
+## Tech stack
 
-| Platform | Status | Default transcription | Default LLM |
-|---|---|---|---|
-| macOS Apple Silicon | Primary target | `mlx-whisper` | `mlx_lm.server` (Qwen2.5) |
-| macOS Intel | Works, cloud-only | whisper-rs (TBD) | cloud (BYOK) |
-| Windows | Works, cloud-only | whisper-rs (TBD) | cloud (BYOK) |
-| Linux | Works, cloud-only | whisper-rs (TBD) | cloud (BYOK) |
+Built with [Tauri v2](https://tauri.app/) (Rust backend + HTML/JS frontend). Seven independent Rust crates keep the architecture modular and testable.
 
 ## License
 
-TBD. This is a personal project; no license committed yet.
+[MIT](LICENSE)
