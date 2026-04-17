@@ -1,6 +1,6 @@
 # Dev Log
 
-Nhật ký **what was done** theo ngày của CreatorUtils v2.
+Nhật ký **what was done** theo ngày của My Media Kit v2.
 
 ## Quy tắc
 

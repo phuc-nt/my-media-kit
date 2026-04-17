@@ -1,11 +1,11 @@
 //! Real-media integration smoke test.
 //!
 //! Exercises the media-kit pipeline against an actual video file passed via
-//! the `CREATOR_UTILS_TEST_MEDIA` env var. Skipped when the env var is
+//! the `MY_MEDIA_KIT_TEST_MEDIA` env var. Skipped when the env var is
 //! unset so `cargo test` stays fast on CI / fresh checkouts.
 //!
 //! Usage:
-//!   CREATOR_UTILS_TEST_MEDIA=/path/to/video.mov cargo test -p media-kit \
+//!   MY_MEDIA_KIT_TEST_MEDIA=/path/to/video.mov cargo test -p media-kit \
 //!     --test real_media_smoke -- --nocapture
 //!
 //! Checks:
@@ -16,7 +16,7 @@
 use std::path::PathBuf;
 
 fn test_media_path() -> Option<PathBuf> {
-    std::env::var("CREATOR_UTILS_TEST_MEDIA")
+    std::env::var("MY_MEDIA_KIT_TEST_MEDIA")
         .ok()
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
@@ -26,7 +26,7 @@ fn test_media_path() -> Option<PathBuf> {
 #[tokio::test]
 async fn probe_returns_duration() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
     let probe = media_kit::probe_media(&path).await.expect("probe_media");
@@ -41,7 +41,7 @@ async fn probe_returns_duration() {
 #[tokio::test]
 async fn extract_pcm_samples_matches_duration() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
     let probe = media_kit::probe_media(&path).await.expect("probe_media");
@@ -77,7 +77,7 @@ async fn extract_pcm_samples_matches_duration() {
 #[tokio::test]
 async fn cut_and_concat_writes_output() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
 
@@ -90,7 +90,7 @@ async fn cut_and_concat_writes_output() {
         ((total * 2) / 3, total),
     ];
 
-    let out = std::env::temp_dir().join("creator_utils_cut_and_concat_test.mp4");
+    let out = std::env::temp_dir().join("my_media_kit_cut_and_concat_test.mp4");
     if out.exists() {
         let _ = std::fs::remove_file(&out);
     }

@@ -1,5 +1,5 @@
 //! Real-media silence detection smoke test. Requires `media-kit` to extract
-//! samples from a real file pointed to by `CREATOR_UTILS_TEST_MEDIA`.
+//! samples from a real file pointed to by `MY_MEDIA_KIT_TEST_MEDIA`.
 //!
 //! Runs the auto-threshold pipeline end-to-end and asserts the invariants
 //! we actually care about:
@@ -14,7 +14,7 @@ use creator_core::SilenceDetectorConfig;
 use silence_kit::{detect_silence, FRAME_SIZE};
 
 fn test_media_path() -> Option<PathBuf> {
-    std::env::var("CREATOR_UTILS_TEST_MEDIA")
+    std::env::var("MY_MEDIA_KIT_TEST_MEDIA")
         .ok()
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
@@ -24,7 +24,7 @@ fn test_media_path() -> Option<PathBuf> {
 #[tokio::test]
 async fn detects_silence_on_real_recording() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
 

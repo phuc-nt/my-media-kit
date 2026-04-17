@@ -22,7 +22,7 @@
 //! Run:
 //!   cargo test --test end_to_end_content_pipeline -- --nocapture --test-threads=1
 //!
-//! Override the source folder with `CREATOR_UTILS_TEST_INPUT=/some/dir`.
+//! Override the source folder with `MY_MEDIA_KIT_TEST_INPUT=/some/dir`.
 
 #![cfg(all(target_os = "macos", target_arch = "aarch64"))]
 
@@ -43,7 +43,7 @@ const EN_CLIP_PREFIX: &str = "What-Makes";
 const JP_CLIP_PREFIX: &str = "Hope-invites";
 
 fn input_dir() -> PathBuf {
-    if let Ok(p) = std::env::var("CREATOR_UTILS_TEST_INPUT") {
+    if let Ok(p) = std::env::var("MY_MEDIA_KIT_TEST_INPUT") {
         return PathBuf::from(p);
     }
     // Default: walk up from CARGO_MANIFEST_DIR (= src-tauri/) to repo root,

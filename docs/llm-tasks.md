@@ -1,6 +1,6 @@
 # LLM Tasks — Feature Catalog + Model Choices
 
-Inventory of CreatorUtils features that **require** an LLM call, what they ask the model to do, and which concrete model options are viable for each. Used when configuring providers, writing prompts, or deciding which default ships with the app.
+Inventory of My Media Kit features that **require** an LLM call, what they ask the model to do, and which concrete model options are viable for each. Used when configuring providers, writing prompts, or deciding which default ships with the app.
 
 > **Default per ADR-012:** on Apple Silicon, MVP uses local **MLX** backends (`mlx-whisper` for transcription, `mlx_lm.server` for LLM). Cloud providers (Claude/OpenAI/Gemini) remain implemented and tested, but are post-MVP / BYOK options. Sections below list MLX first where applicable.
 

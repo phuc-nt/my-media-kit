@@ -8,7 +8,7 @@
 //!   6. Export final MP4
 //!   7. Verify output is shorter than source
 //!
-//! Skipped unless `CREATOR_UTILS_TEST_MEDIA` points at a real file.
+//! Skipped unless `MY_MEDIA_KIT_TEST_MEDIA` points at a real file.
 //! Output is written to `/tmp/autocut_full_output.mp4` and intentionally
 //! NOT deleted so the user can inspect it.
 
@@ -24,7 +24,7 @@ use media_kit::{cut_and_concat, extract_pcm_samples, probe_media};
 use silence_kit::detect_silence;
 
 fn test_media_path() -> Option<PathBuf> {
-    std::env::var("CREATOR_UTILS_TEST_MEDIA")
+    std::env::var("MY_MEDIA_KIT_TEST_MEDIA")
         .ok()
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
@@ -34,7 +34,7 @@ fn test_media_path() -> Option<PathBuf> {
 #[tokio::test]
 async fn full_pipeline_silence_plus_filler() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
 
@@ -124,7 +124,7 @@ async fn full_pipeline_silence_plus_filler() {
             eprintln!("MLX LM server not running — using word-scan only");
             vec![]
         } else {
-            let model = std::env::var("CREATOR_UTILS_LM_MODEL")
+            let model = std::env::var("MY_MEDIA_KIT_LM_MODEL")
                 .unwrap_or_else(|_| "mlx-community/gemma-4-E4B-it-4bit".into());
             let batch = TranscriptBatch {
                 batch_index: 0,

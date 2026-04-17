@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    creator_utils_lib::run();
+    my_media_kit_lib::run();
 }

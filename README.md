@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/logo/media-file-3d.svg" width="96" alt="CreatorUtils logo" />
+  <img src="assets/logo/media-file-3d.svg" width="96" alt="My Media Kit logo" />
 </p>
 
-<h1 align="center">CreatorUtils</h1>
+<h1 align="center">My Media Kit</h1>
 
 <p align="center">
   All-in-one video toolkit for content creators.<br/>

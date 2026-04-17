@@ -37,7 +37,7 @@ tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
 
 [package]
-name = "creator-utils"
+name = "my-media-kit"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -46,7 +46,7 @@ rust-version.workspace = true
 description = "Cross-platform creator video utilities: transcription, silence detection, auto-cut, AI summaries, NLE export"
 
 [lib]
-name = "creator_utils_lib"
+name = "my_media_kit_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

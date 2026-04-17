@@ -1,4 +1,4 @@
-//! creator-core — Pure-data domain types shared across all CreatorUtils crates.
+//! creator-core — Pure-data domain types shared across all My Media Kit crates.
 //!
 //! Stays dependency-free of platform-bound crates (no tauri, no ffmpeg, no
 //! reqwest). Every other crate depends on this one.

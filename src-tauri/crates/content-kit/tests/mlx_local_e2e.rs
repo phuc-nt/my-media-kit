@@ -55,7 +55,7 @@ fn mlx_lm_model() -> String {
         .unwrap_or_else(|_| "mlx-community/Qwen2.5-7B-Instruct-4bit".into())
 }
 
-/// Default whisper model — override via CREATOR_UTILS_MLX_WHISPER_MODEL env var
+/// Default whisper model — override via MY_MEDIA_KIT_MLX_WHISPER_MODEL env var
 /// (already read inside MlxWhisperTranscriber::new()).
 const DEFAULT_WHISPER_MODEL: &str = "mlx-community/whisper-large-v3-turbo";
 
@@ -404,7 +404,7 @@ async fn mlx_local_full_pipeline_all_clips() {
         return;
     }
     let model = mlx_lm_model();
-    let whisper_model = std::env::var("CREATOR_UTILS_MLX_WHISPER_MODEL")
+    let whisper_model = std::env::var("MY_MEDIA_KIT_MLX_WHISPER_MODEL")
         .unwrap_or_else(|_| DEFAULT_WHISPER_MODEL.to_string());
 
     println!("\n════════════════════════════════════════════════════════════════");

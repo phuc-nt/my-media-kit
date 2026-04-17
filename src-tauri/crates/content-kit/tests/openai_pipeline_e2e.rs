@@ -12,7 +12,7 @@
 //! Estimated total API cost: ~$0.12 whisper + minimal gpt-4o-mini.
 //!
 //! Prerequisites:
-//!   OpenAI key in keyring (service=tech.lighton.media.CreatorUtils,
+//!   OpenAI key in keyring (service=tech.lighton.media.My Media Kit,
 //!   account=ai.provider.openai.apiKey) or env var OPENAI_API_KEY.
 //!
 //! Run:

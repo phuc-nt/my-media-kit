@@ -1,6 +1,6 @@
 # Backlog
 
-Living priority list for CreatorUtils v2. Updated per session. Priority score = rough `value × ease × (6 - risk)` heuristic; use milestones as the authoritative sequencing.
+Living priority list for My Media Kit v2. Updated per session. Priority score = rough `value × ease × (6 - risk)` heuristic; use milestones as the authoritative sequencing.
 
 ## Scoring legend
 

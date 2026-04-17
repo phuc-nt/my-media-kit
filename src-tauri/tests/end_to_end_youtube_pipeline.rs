@@ -59,7 +59,7 @@ async fn youtube_url_pipeline_e2e() {
     println!("[1] video ID: {id}  ✓");
 
     // ── 2. Download via yt-dlp ────────────────────────────────────────────
-    let cache_dir = std::env::temp_dir().join("creator_utils_yt_test");
+    let cache_dir = std::env::temp_dir().join("my_media_kit_yt_test");
     std::fs::create_dir_all(&cache_dir).expect("create temp cache dir");
     let dest = cache_dir.join(format!("{id}.mp4"));
 

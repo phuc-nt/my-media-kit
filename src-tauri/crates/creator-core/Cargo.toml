@@ -3,7 +3,7 @@ name = "creator-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Domain models and shared errors for CreatorUtils"
+description = "Domain models and shared errors for My Media Kit"
 
 [dependencies]
 serde = { workspace = true }

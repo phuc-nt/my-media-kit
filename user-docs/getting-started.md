@@ -3,12 +3,12 @@
 ## Download & Install
 
 ### macOS
-1. Download `CreatorUtils_x.x.x_aarch64.dmg` (Apple Silicon) or `CreatorUtils_x.x.x_x64.dmg` (Intel) from [Releases](https://github.com/phuc-nt/my-media-kit/releases)
-2. Open the `.dmg` and drag **CreatorUtils** to Applications
+1. Download `MyMediaKit_x.x.x_aarch64.dmg` (Apple Silicon) or `MyMediaKit_x.x.x_x64.dmg` (Intel) from [Releases](https://github.com/phuc-nt/my-media-kit/releases)
+2. Open the `.dmg` and drag **MyMediaKit** to Applications
 3. First launch: right-click → Open (macOS Gatekeeper requires this for the first run)
 
 ### Windows
-1. Download `CreatorUtils_x.x.x_x64-setup.exe` from [Releases](https://github.com/phuc-nt/my-media-kit/releases)
+1. Download `MyMediaKit_x.x.x_x64-setup.exe` from [Releases](https://github.com/phuc-nt/my-media-kit/releases)
 2. Run the installer and follow the prompts
 
 ### Auto-update

@@ -4,7 +4,7 @@
 
 ## Context
 
-v1 (reverse-engineered from `/Applications/CreatorUtils`) targets macOS 26+, ships as a monolithic app bundle, uses `@AppStorage` for API keys, bundles `whisper.framework`, supports 4 AI providers including Apple Intelligence, and exports to 4 NLEs including CapCut. Build effort ≈ 33 dev-days.
+v1 (reverse-engineered from `/Applications/My Media Kit`) targets macOS 26+, ships as a monolithic app bundle, uses `@AppStorage` for API keys, bundles `whisper.framework`, supports 4 AI providers including Apple Intelligence, and exports to 4 NLEs including CapCut. Build effort ≈ 33 dev-days.
 
 v2 goal: rebuild the **high-value features** with better architecture + broader OS reach + testability without Xcode, accepting tech/scope changes.
 
@@ -79,7 +79,7 @@ v2 goal: rebuild the **high-value features** with better architecture + broader 
 | `AIKit` | ✓ | CreatorCore | Provider protocol + Claude/OpenAI/Gemini + SecretStore |
 | `CoreMediaKit` | ✗ (AVFoundation) | CreatorCore | Audio extract, composition build, export |
 | `TranscriptionKit` | ✗ (WhisperKit) | CreatorCore, CoreMediaKit | Whisper wrapper |
-| `CreatorUtilsApp` | ✗ (SwiftUI) | all kits | UI, ViewModels, assembly |
+| `My Media KitApp` | ✗ (SwiftUI) | all kits | UI, ViewModels, assembly |
 
 **Why:** Adding a feature = new file in correct kit. Adding a provider = new file in AIKit conforming to protocol. Adding an NLE format = new builder in NLEKit. Zero cross-kit churn.
 
@@ -121,7 +121,7 @@ Register in `AIServiceManager` init with runtime check. UI picker hides the opti
 
 ## ADR-008 — Translate: feature-level, not new module
 
-**Decision:** When Translate is added, implement as a ViewModel + View inside `CreatorUtilsApp`, reusing existing `AIKit` for prompt execution. `CreatorCore` gains `TranslateLanguage` enum and `TranslatedSegment` struct.
+**Decision:** When Translate is added, implement as a ViewModel + View inside `My Media KitApp`, reusing existing `AIKit` for prompt execution. `CreatorCore` gains `TranslateLanguage` enum and `TranslatedSegment` struct.
 
 **Why:**
 - Translate is architecturally identical to Summary/Chapter/Metadata — structured output from an AI provider. No new kit needed; the AIKit protocol already handles it.
@@ -129,8 +129,8 @@ Register in `AIServiceManager` init with runtime check. UI picker hides the opti
 
 **How to apply later:**
 1. `CreatorCore/TranslateModels.swift` — language enum + segment struct.
-2. `CreatorUtilsApp/Features/Translate/TranslateViewModel.swift` — runs `provider.complete(...)` with `TranslatedBatch` schema.
-3. `CreatorUtilsApp/Features/Translate/TranslateView.swift` — 2-column SwiftUI view.
+2. `My Media KitApp/Features/Translate/TranslateViewModel.swift` — runs `provider.complete(...)` with `TranslatedBatch` schema.
+3. `My Media KitApp/Features/Translate/TranslateView.swift` — 2-column SwiftUI view.
 4. No Package.swift change.
 
 **Alternative rejected:** Dedicated `TranslateKit` — considered, rejected because it would be a 1-file module that only depends on what a feature ViewModel already has.

@@ -37,7 +37,7 @@ use crate::transcriber::{Transcriber, TranscriptionOptions};
 pub type ProgressCallback = Arc<dyn Fn(i64) + Send + Sync>;
 
 /// Default mlx-whisper model — pre-downloaded on the primary dev machine.
-/// Override via env var `CREATOR_UTILS_MLX_WHISPER_MODEL` or builder arg.
+/// Override via env var `MY_MEDIA_KIT_MLX_WHISPER_MODEL` or builder arg.
 pub const DEFAULT_MODEL: &str = "mlx-community/whisper-large-v3-turbo";
 
 pub struct MlxWhisperTranscriber {
@@ -47,7 +47,7 @@ pub struct MlxWhisperTranscriber {
 
 impl MlxWhisperTranscriber {
     pub fn new() -> Self {
-        let model = std::env::var("CREATOR_UTILS_MLX_WHISPER_MODEL")
+        let model = std::env::var("MY_MEDIA_KIT_MLX_WHISPER_MODEL")
             .unwrap_or_else(|_| DEFAULT_MODEL.to_string());
         let binary = which_binary("mlx_whisper")
             .unwrap_or_else(|| PathBuf::from("mlx_whisper"));
@@ -92,7 +92,7 @@ impl MlxWhisperTranscriber {
         on_progress: Option<ProgressCallback>,
     ) -> Result<Vec<TranscriptionSegment>, String> {
         let tmp_dir = std::env::temp_dir().join(format!(
-            "creator_utils_mlx_whisper_{}",
+            "my_media_kit_mlx_whisper_{}",
             uuid::Uuid::new_v4()
         ));
         std::fs::create_dir_all(&tmp_dir)

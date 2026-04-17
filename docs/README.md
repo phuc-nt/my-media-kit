@@ -10,7 +10,7 @@ Tài liệu của project v2 (Tauri cross-platform rebuild).
 
 ## Tài liệu reverse engineering (không check vào repo)
 
-Tài liệu phân tích app gốc `/Applications/CreatorUtils` (v1) nằm ở `_research/reverse-engineering/` trên máy local, **ignored trong git** (xem `.gitignore`). Lý do:
+Tài liệu phân tích app gốc `/Applications/My Media Kit` (v1) nằm ở `_research/reverse-engineering/` trên máy local, **ignored trong git** (xem `.gitignore`). Lý do:
 
 - Derived từ binary của app thương mại của bên thứ ba — không phân phối công khai được.
 - Chứa prompts + strings extracted; treat như internal research notes.

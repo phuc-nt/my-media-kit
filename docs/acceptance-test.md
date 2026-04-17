@@ -6,13 +6,13 @@
 
 - Apple Silicon Mac, đã `brew install ffmpeg`, đã `pip install mlx-lm mlx-whisper`
 - `npm install` tại repo root
-- 3 clip test trong `/tmp/creator_utils_test/`. Nếu thiếu:
+- 3 clip test trong `/tmp/my_media_kit_test/`. Nếu thiếu:
   ```bash
-  mkdir -p /tmp/creator_utils_test
+  mkdir -p /tmp/my_media_kit_test
   for src in ~/workspace/creator_util/test-input/*.mp4; do
     name=$(basename "$src" .mp4 | cut -c1-30)
     ffmpeg -y -hide_banner -loglevel error -ss 30 -t 30 -i "$src" \
-      -c:v libx264 -preset veryfast -c:a aac /tmp/creator_utils_test/clip-${name}.mp4
+      -c:v libx264 -preset veryfast -c:a aac /tmp/my_media_kit_test/clip-${name}.mp4
   done
   ```
   Expected: `clip-Hope-…` (JP), `clip-Su-that-…` (VN), `clip-What-Makes-…` (EN).
@@ -31,7 +31,7 @@
 **Pass:** mỗi tab đổi active + main pane đổi theo. Translate/Summary/Chapters hiện "transcribe first". Settings load grid provider.
 
 ### AT-03 — Paste source path
-**Làm:** paste `/tmp/creator_utils_test/clip-What-Makes-a-Good-Life-Lessons.mp4` vào ô Source video, Tab để blur.
+**Làm:** paste `/tmp/my_media_kit_test/clip-What-Makes-a-Good-Life-Lessons.mp4` vào ô Source video, Tab để blur.
 **Pass:** meta caption đổi từ "no file selected" sang tên file.
 
 ### AT-04 — AutoCut lần đầu (ffmpeg extract)

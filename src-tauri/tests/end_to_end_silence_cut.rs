@@ -8,7 +8,7 @@
 //!   5. run the direct cut-and-concat export
 //!   6. ffprobe the output to verify it's a real video file
 //!
-//! Skipped unless `CREATOR_UTILS_TEST_MEDIA` points at a file.
+//! Skipped unless `MY_MEDIA_KIT_TEST_MEDIA` points at a file.
 
 use std::path::PathBuf;
 
@@ -17,7 +17,7 @@ use media_kit::{cut_and_concat, extract_pcm_samples, probe_media};
 use silence_kit::{detect_silence, invert_regions};
 
 fn test_media_path() -> Option<PathBuf> {
-    std::env::var("CREATOR_UTILS_TEST_MEDIA")
+    std::env::var("MY_MEDIA_KIT_TEST_MEDIA")
         .ok()
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
@@ -27,7 +27,7 @@ fn test_media_path() -> Option<PathBuf> {
 #[tokio::test]
 async fn silence_cut_direct_export_roundtrip() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
 
@@ -51,7 +51,7 @@ async fn silence_cut_direct_export_roundtrip() {
         expected_out_ms
     );
 
-    let out = std::env::temp_dir().join("creator_utils_e2e_silence_cut.mp4");
+    let out = std::env::temp_dir().join("my_media_kit_e2e_silence_cut.mp4");
     if out.exists() {
         let _ = std::fs::remove_file(&out);
     }

@@ -225,7 +225,7 @@ mod tests {
         NleExportInput {
             source_path: PathBuf::from("/Users/demo/video.mov"),
             asset_name: "video.mov".into(),
-            project_name: "CreatorUtils Export".into(),
+            project_name: "My Media Kit Export".into(),
             total_duration_ms: 10_000,
             frame_rate: 30.0,
             width: 1920,

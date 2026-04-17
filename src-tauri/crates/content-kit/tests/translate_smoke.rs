@@ -6,7 +6,7 @@
 //! Requires:
 //!   - Apple Silicon (mlx_whisper + mlx_lm both gated)
 //!   - `mlx_lm.server` running on 127.0.0.1:8080 with a Qwen model loaded
-//!   - 30-second test clips already trimmed into `/tmp/creator_utils_test/`
+//!   - 30-second test clips already trimmed into `/tmp/my_media_kit_test/`
 //!
 //! Run:
 //!   cargo test -p content-kit --test translate_smoke -- --nocapture --test-threads=1
@@ -23,7 +23,7 @@ use creator_core::TranscriptionSegment;
 use transcription_kit::{MlxWhisperTranscriber, TranscriptionOptions};
 
 const MLX_MODEL: &str = "mlx-community/Qwen2.5-7B-Instruct-4bit";
-const CLIPS_DIR: &str = "/tmp/creator_utils_test";
+const CLIPS_DIR: &str = "/tmp/my_media_kit_test";
 const VN_CLIP: &str = "clip-Su-that-ve-tam-ly-hoc-khong-gi.mp4";
 const EN_CLIP: &str = "clip-What-Makes-a-Good-Life-Lessons.mp4";
 const JP_CLIP: &str = "clip-Hope-invites-Tsutomu-Uematsu-T.mp4";

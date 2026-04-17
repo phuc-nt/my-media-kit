@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CreatorUtils",
+  "productName": "MyMediaKit",
   "version": "0.1.0",
-  "identifier": "tech.lighton.media.CreatorUtils",
+  "identifier": "tech.lighton.media.MyMediaKit",
   "build": {
     "frontendDist": "../src"
   },
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "CreatorUtils",
+        "title": "My Media Kit",
         "width": 1280,
         "height": 800,
         "minWidth": 960,

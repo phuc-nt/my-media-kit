@@ -1,7 +1,7 @@
 //! Real-media mlx-whisper smoke test.
 //!
 //! Spawns the real `mlx_whisper` CLI against a file pointed to by
-//! `CREATOR_UTILS_TEST_MEDIA`. Skipped when the env var is unset OR when
+//! `MY_MEDIA_KIT_TEST_MEDIA`. Skipped when the env var is unset OR when
 //! the platform is not Apple Silicon (the `MlxWhisperTranscriber` type
 //! doesn't exist there).
 //!
@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use transcription_kit::{MlxWhisperTranscriber, TranscriptionOptions};
 
 fn test_media_path() -> Option<PathBuf> {
-    std::env::var("CREATOR_UTILS_TEST_MEDIA")
+    std::env::var("MY_MEDIA_KIT_TEST_MEDIA")
         .ok()
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
@@ -26,7 +26,7 @@ fn test_media_path() -> Option<PathBuf> {
 #[tokio::test]
 async fn mlx_whisper_transcribes_real_file() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
 

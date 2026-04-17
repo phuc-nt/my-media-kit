@@ -9,7 +9,7 @@ use nle_kit::{build_fcpxml, build_xmeml, NleExportInput};
 use silence_kit::{detect_silence, invert_regions};
 
 fn test_media_path() -> Option<PathBuf> {
-    std::env::var("CREATOR_UTILS_TEST_MEDIA")
+    std::env::var("MY_MEDIA_KIT_TEST_MEDIA")
         .ok()
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
@@ -24,7 +24,7 @@ fn build_input(path: PathBuf, duration_ms: i64, keep_ranges: Vec<(i64, i64)>) ->
             .and_then(|n| n.to_str())
             .unwrap_or("clip")
             .to_string(),
-        project_name: "CreatorUtils Smoke".into(),
+        project_name: "My Media Kit Smoke".into(),
         total_duration_ms: duration_ms,
         frame_rate: 30.0,
         width: 1920,
@@ -73,7 +73,7 @@ fn assert_well_formed_with_elements(xml: &[u8], required_tags: &[&str]) {
 #[tokio::test]
 async fn silence_detect_to_fcpxml_and_xmeml() {
     let Some(path) = test_media_path() else {
-        eprintln!("skipped: CREATOR_UTILS_TEST_MEDIA not set");
+        eprintln!("skipped: MY_MEDIA_KIT_TEST_MEDIA not set");
         return;
     };
 

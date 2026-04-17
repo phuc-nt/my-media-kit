@@ -1,4 +1,4 @@
-//! CreatorUtils — Tauri app entry point.
+//! My Media Kit — Tauri app entry point.
 //!
 //! Keeps top-level concerns (command registration, state setup) here.
 //! Feature implementations live in `commands/` and the `crates/` under

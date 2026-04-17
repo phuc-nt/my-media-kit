@@ -51,8 +51,8 @@ impl Provider for OpenRouterProvider {
             .post(&url)
             .bearer_auth(&self.api_key)
             .header("content-type", "application/json")
-            .header("HTTP-Referer", "https://github.com/creator-utils")
-            .header("X-Title", "CreatorUtils")
+            .header("HTTP-Referer", "https://github.com/phuc-nt/my-media-kit")
+            .header("X-Title", "MyMediaKit")
             .json(&body)
             .send()
             .await

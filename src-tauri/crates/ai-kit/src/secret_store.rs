@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use creator_core::{AiProviderError, AiProviderType};
 
 /// Service name used for all keys in the OS keyring.
-pub const KEYRING_SERVICE: &str = "tech.lighton.media.CreatorUtils";
+pub const KEYRING_SERVICE: &str = "tech.lighton.media.MyMediaKit";
 
 pub trait SecretStore: Send + Sync {
     fn get(&self, provider: AiProviderType) -> Result<Option<String>, AiProviderError>;
