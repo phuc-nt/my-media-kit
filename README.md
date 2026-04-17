@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo/media-file-3d.svg" width="96" alt="My Media Kit logo" />
+  <img src="assets/logo/logo.png" width="96" alt="My Media Kit logo" />
 </p>
 
 <h1 align="center">My Media Kit</h1>
