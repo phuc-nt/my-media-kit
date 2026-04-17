@@ -1,7 +1,7 @@
 // Translate view. Reads the cached transcript from source-store, calls
 // content_translate, renders originals + translations side-by-side.
 
-import { getSource, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe } from "../source-store.js";
 import {
   deriveSiblingPath,
   escapeHtml,
@@ -14,12 +14,10 @@ import {
   setStatus,
   showToast,
 } from "../util.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 export function initTranslateView() {
-  wireProviderModelSync("translate-provider", "translate-model");
   const results = document.getElementById("translate-results");
   const status = document.getElementById("translate-status");
   const btn = document.getElementById("btn-translate");
@@ -38,8 +36,7 @@ export function initTranslateView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const provider = document.getElementById("translate-provider").value;
-    const model = document.getElementById("translate-model").value.trim();
+    const { provider, model } = getAiConfig();
     const target = document.getElementById("translate-target").value.trim() || "vi";
 
     setStatus(status, "translating…", "running");

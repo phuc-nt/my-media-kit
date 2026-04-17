@@ -6,7 +6,7 @@
 // yt_dlp_download (cached by video ID) and then treats the local path as the
 // source, identical to a dragged-in file.
 
-import { getSource, setSourcePath, setTranscript, setProbe, subscribe } from "./source-store.js";
+import { getSource, setSourcePath, setTranscript, setProbe, subscribe, setAiConfig, getAiConfig } from "./source-store.js";
 
 const { invoke } = window.__TAURI__.core;
 const { listen }  = window.__TAURI__.event;
@@ -77,6 +77,11 @@ export function initSourcePanel() {
         audioChannels: p.audio_channels,
       });
       meta.dataset.error = "";
+      // Auto-load cached transcript so all tabs have it immediately.
+      try {
+        const cached = await invoke("get_cached_transcript", { path });
+        if (cached) setTranscript(cached);
+      } catch (_) { /* no cache — user will transcribe manually */ }
     } catch (err) {
       setProbe(null);
       const msg = String(err);
@@ -154,6 +159,53 @@ export function initSourcePanel() {
     } catch (e) {
       meta.textContent = "clear failed: " + e;
     }
+  });
+
+  // ── Global AI config wiring ──────────────────────────────────────────
+  const aiProviderSel = document.getElementById("ai-provider-global");
+  const aiModelInput  = document.getElementById("ai-model-global");
+  const aiLangInput   = document.getElementById("ai-language-global");
+
+  const MODEL_DEFAULTS = {
+    mlx: "mlx-community/Qwen2.5-7B-Instruct-4bit",
+    claude: "claude-sonnet-4-5-20250929",
+    openAi: "gpt-4o-mini",
+    gemini: "gemini-2.0-flash",
+    ollama: "llama3.2",
+    openRouter: "anthropic/claude-3-5-sonnet",
+  };
+
+  function syncAiConfig() {
+    setAiConfig({
+      provider: aiProviderSel.value,
+      model: aiModelInput.value.trim(),
+      language: aiLangInput.value.trim() || "Vietnamese",
+    });
+  }
+
+  aiProviderSel.addEventListener("change", () => {
+    const def = MODEL_DEFAULTS[aiProviderSel.value];
+    if (def) aiModelInput.value = def;
+    syncAiConfig();
+  });
+  aiModelInput.addEventListener("change", syncAiConfig);
+  aiLangInput.addEventListener("change", syncAiConfig);
+
+  // ── Status dots on sidebar tabs ─────────────────────────────────────
+  const featureTabs = document.querySelectorAll(".feature-item[data-feature]");
+  const transcriptFeatures = new Set([
+    "translate", "summary", "chapters", "youtube-pack", "viral-clips", "blog-article",
+  ]);
+
+  subscribe((state) => {
+    const hasTranscript = !!(state.transcript?.segments?.length);
+    featureTabs.forEach((tab) => {
+      const feat = tab.dataset.feature;
+      if (transcriptFeatures.has(feat)) {
+        tab.classList.toggle("locked", !hasTranscript && !!state.path);
+        tab.classList.toggle("ready", hasTranscript);
+      }
+    });
   });
 
   // ── Sidebar meta line (reflects source-store state) ─────────────────────

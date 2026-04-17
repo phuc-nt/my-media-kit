@@ -1,6 +1,6 @@
 // Viral Clips — find the best short-form moments for Shorts/Reels/TikTok.
 
-import { getSource, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe } from "../source-store.js";
 import {
   escapeHtml,
   formatMs,
@@ -9,12 +9,10 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 export function initViralClipsView() {
-  wireProviderModelSync("viral-provider", "viral-model");
   const results = document.getElementById("viral-results");
   const status = document.getElementById("viral-status");
   const btn = document.getElementById("btn-viral");
@@ -24,9 +22,7 @@ export function initViralClipsView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const provider = document.getElementById("viral-provider").value;
-    const model = document.getElementById("viral-model").value.trim();
-    const language = document.getElementById("viral-language").value.trim() || "Vietnamese";
+    const { provider, model, language } = getAiConfig();
 
     setStatus(status, "scanning for viral moments…");
     results.innerHTML = "";

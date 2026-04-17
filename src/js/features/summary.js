@@ -1,7 +1,7 @@
 // Summary view. Single-call summary with brief / key points / action items
 // styles. Reads the cached transcript from source-store.
 
-import { getSource, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe } from "../source-store.js";
 import {
   escapeHtml,
   renderErrorBox,
@@ -9,12 +9,10 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 export function initSummaryView() {
-  wireProviderModelSync("summary-provider", "summary-model");
   const results = document.getElementById("summary-results");
   const status = document.getElementById("summary-status");
   const btn = document.getElementById("btn-summary");
@@ -24,10 +22,8 @@ export function initSummaryView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const provider = document.getElementById("summary-provider").value;
-    const model = document.getElementById("summary-model").value.trim();
+    const { provider, model, language } = getAiConfig();
     const style = document.getElementById("summary-style").value;
-    const language = document.getElementById("summary-language").value.trim() || "English";
 
     setStatus(status, "running summary…");
     results.innerHTML = "";

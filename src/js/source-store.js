@@ -10,6 +10,12 @@ const state = {
   probe: null,      // { durationMs, width, height, frameRate, audioChannels }
 };
 
+const aiConfig = {
+  provider: "mlx",
+  model: "mlx-community/Qwen2.5-7B-Instruct-4bit",
+  language: "Vietnamese",
+};
+
 const listeners = new Set();
 
 function notify() {
@@ -49,6 +55,14 @@ export function setTranscript(transcript) {
       }
     : null;
   notify();
+}
+
+export function getAiConfig() {
+  return { ...aiConfig };
+}
+
+export function setAiConfig(updates) {
+  Object.assign(aiConfig, updates);
 }
 
 export function subscribe(fn) {

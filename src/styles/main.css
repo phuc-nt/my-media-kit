@@ -69,6 +69,8 @@ body {
 }
 
 .feature-item {
+  display: flex;
+  align-items: center;
   text-align: left;
   padding: 8px 12px;
   background: transparent;
@@ -232,7 +234,7 @@ button.ghost:hover {
   border-radius: var(--radius);
   background: var(--bg-elev);
   padding: 14px 18px;
-  max-height: 320px;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
@@ -582,6 +584,119 @@ input[type="range"]:disabled {
 }
 
 /* ── Source meta with transcript indicator ───────────────────────────── */
+/* ── Global AI config in sidebar ──────────────────────────────────────── */
+.ai-config {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-config select,
+.ai-config input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 11px;
+}
+
+/* ── Tab status dots ─────────────────────────────────────────────────── */
+.feature-item.ready::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.feature-item.locked::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  margin-left: auto;
+  opacity: 0.4;
+}
+
+/* ── Viral clip cards ────────────────────────────────────────────────── */
+.clip-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.clip-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.clip-time {
+  font-size: 11px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-hook {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.clip-caption {
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+/* ── YouTube pack tags ───────────────────────────────────────────────── */
+.tag-cloud code {
+  display: inline-block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 2px;
+  font-size: 11px;
+}
+
+pre.wrapped {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+/* ── Article sections ────────────────────────────────────────────────── */
+.article-title {
+  margin-bottom: 20px;
+}
+
+.article-section h3 {
+  margin: 16px 0 6px;
+  color: var(--accent);
+}
+
+.article-section p {
+  line-height: 1.6;
+}
+
 .source-meta .transcript-tag {
   color: var(--success);
   font-size: 10px;

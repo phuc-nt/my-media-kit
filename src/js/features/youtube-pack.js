@@ -1,6 +1,6 @@
 // YouTube Content Pack — title suggestions, description, SEO tags.
 
-import { getSource, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe } from "../source-store.js";
 import {
   escapeHtml,
   renderErrorBox,
@@ -8,14 +8,12 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 let lastPack = null;
 
 export function initYouTubePackView() {
-  wireProviderModelSync("ytpack-provider", "ytpack-model");
   const results = document.getElementById("ytpack-results");
   const status = document.getElementById("ytpack-status");
   const btn = document.getElementById("btn-ytpack");
@@ -26,9 +24,7 @@ export function initYouTubePackView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const provider = document.getElementById("ytpack-provider").value;
-    const model = document.getElementById("ytpack-model").value.trim();
-    const language = document.getElementById("ytpack-language").value.trim() || "Vietnamese";
+    const { provider, model, language } = getAiConfig();
 
     setStatus(status, "generating…");
     results.innerHTML = "";

@@ -1,6 +1,6 @@
 // Blog Article — convert transcript into a structured article.
 
-import { getSource, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe } from "../source-store.js";
 import {
   escapeHtml,
   renderErrorBox,
@@ -8,14 +8,12 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 let lastArticle = null;
 
 export function initBlogArticleView() {
-  wireProviderModelSync("blog-provider", "blog-model");
   const results = document.getElementById("blog-results");
   const status = document.getElementById("blog-status");
   const btn = document.getElementById("btn-blog");
@@ -26,9 +24,7 @@ export function initBlogArticleView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const provider = document.getElementById("blog-provider").value;
-    const model = document.getElementById("blog-model").value.trim();
-    const language = document.getElementById("blog-language").value.trim() || "Vietnamese";
+    const { provider, model, language } = getAiConfig();
 
     setStatus(status, "generating article…");
     results.innerHTML = "";

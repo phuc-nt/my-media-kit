@@ -1,7 +1,7 @@
 // Chapters view. Runs content_chapters, renders the list, has a one-click
 // copy button that formats the output for a YouTube video description.
 
-import { getSource, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe } from "../source-store.js";
 import {
   escapeHtml,
   formatMs,
@@ -10,14 +10,12 @@ import {
   requireTranscript,
   setStatus,
 } from "../util.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 let lastChapters = null;
 
 export function initChaptersView() {
-  wireProviderModelSync("chapters-provider", "chapters-model");
   const results = document.getElementById("chapters-results");
   const status = document.getElementById("chapters-status");
   const btn = document.getElementById("btn-chapters");
@@ -28,9 +26,7 @@ export function initChaptersView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const provider = document.getElementById("chapters-provider").value;
-    const model = document.getElementById("chapters-model").value.trim();
-    const language = document.getElementById("chapters-language").value.trim() || "English";
+    const { provider, model, language } = getAiConfig();
 
     setStatus(status, "generating chapters…");
     results.innerHTML = "";
