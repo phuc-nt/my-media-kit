@@ -37,7 +37,9 @@ use crate::request::{CompletionRequest, ResponseFormat};
 use crate::Provider;
 
 pub const DEFAULT_HOST: &str = "http://127.0.0.1:8080";
-pub const DEFAULT_MODEL: &str = "mlx-community/Qwen2.5-7B-Instruct-4bit";
+/// Qwen3-14B 4-bit — best local translation quality, 140+ languages, ~9 GB RAM.
+/// Use /no_think prefix in translation prompts to skip reasoning tokens.
+pub const DEFAULT_MODEL: &str = "mlx-community/Qwen3-14B-4bit";
 pub const DUMMY_KEY: &str = "mlx";
 
 pub struct MlxLmProvider {

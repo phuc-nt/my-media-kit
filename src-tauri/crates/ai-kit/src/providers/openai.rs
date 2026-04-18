@@ -41,10 +41,14 @@ impl OpenAiProvider {
             { "role": "user",   "content": request.user_prompt },
         ]);
 
+        // Send both fields: `max_completion_tokens` for the real OpenAI API
+        // (2025+) and `max_tokens` for mlx_lm.server and older-compat servers
+        // that don't recognise the newer field yet.
         let mut body = json!({
             "model": request.model,
             "messages": messages,
             "temperature": request.temperature,
+            "max_tokens": request.max_tokens,
             "max_completion_tokens": request.max_tokens,
         });
 

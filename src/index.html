@@ -7,342 +7,183 @@
     <link rel="stylesheet" href="styles/main.css" />
   </head>
   <body>
-    <aside id="sidebar" aria-label="Features">
-      <header class="sidebar-header">
-        <h1 class="app-title">My Media Kit</h1>
-        <span id="app-version" class="app-version">…</span>
-      </header>
-
-      <section class="source-picker" id="source-picker-area">
-        <label class="source-label" for="source-path">Source video</label>
-        <div class="source-picker-row">
-          <input id="source-path" type="text" placeholder="drag a video, paste path, or paste YouTube URL…" />
+    <!-- ═══════════ TOP: Source Manager (~40% height) ═══════════ -->
+    <header id="source-manager">
+      <!-- Row 1: App title + input + AI config -->
+      <div class="sm-toolbar">
+        <h1 class="app-title">My Media Kit <span id="app-version" class="app-version">…</span></h1>
+        <div class="source-input-row">
+          <input id="source-path" type="text" placeholder="drag a video, paste path, or YouTube URL" />
+          <button id="btn-source-browse" class="ghost small">Browse</button>
         </div>
-        <div class="source-meta" id="source-meta">no file selected</div>
-        <button id="btn-source-clear" class="ghost small">Clear cache</button>
-      </section>
+        <div class="sm-config">
+          <select id="ai-mode-global" title="AI engine">
+            <option value="local">MLX (local)</option>
+            <option value="cloud">Cloud (OpenAI)</option>
+          </select>
+          <input id="ai-language-global" type="text" value="Vietnamese" placeholder="Language" title="Output language" />
+          <button id="btn-source-clear" class="ghost small">Clear</button>
+        </div>
+      </div>
 
-      <section class="ai-config" id="ai-config-area">
-        <label class="source-label">AI provider</label>
-        <select id="ai-provider-global">
-          <option value="mlx" selected>MLX (local)</option>
-          <option value="claude">Claude</option>
-          <option value="openAi">OpenAI</option>
-          <option value="gemini">Gemini</option>
-          <option value="ollama">Ollama</option>
-          <option value="openRouter">OpenRouter</option>
-        </select>
-        <input id="ai-model-global" type="text" value="mlx-community/Qwen2.5-7B-Instruct-4bit" placeholder="model ID" />
-        <label class="source-label">Output language</label>
-        <input id="ai-language-global" type="text" value="Vietnamese" placeholder="e.g. Vietnamese, English" />
-      </section>
+      <!-- Row 2: Source info panel -->
+      <div class="sm-info" id="source-info-panel">
+        <div class="sm-preview" id="source-preview">
+          <div class="sm-no-source">
+            <span class="sm-icon">🎬</span>
+            <p>Drop a video file here or click Browse</p>
+          </div>
+        </div>
+        <div class="sm-details">
+          <div class="sm-file-info" id="source-meta">no file selected</div>
+          <div class="sm-badges" id="status-badges"></div>
+          <div class="sm-output-dir" id="output-dir-info"></div>
+        </div>
+      </div>
+    </header>
 
-      <nav class="feature-list" role="tablist">
-        <!-- AutoCut + Export hidden: pipeline still in development. Enable
-             by removing `hidden` once silence-detection UX is finalised. -->
-        <button class="feature-item" data-feature="autocut" role="tab" hidden>AutoCut</button>
+    <!-- ═══════════ BOTTOM: Feature Workspace (~60% height) ═══════════ -->
+    <div id="workspace">
+      <nav id="feature-tabs" role="tablist">
         <button class="feature-item active" data-feature="transcribe" role="tab">Transcribe</button>
         <button class="feature-item" data-feature="translate" role="tab">Translate</button>
         <button class="feature-item" data-feature="summary" role="tab">Summary</button>
         <button class="feature-item" data-feature="chapters" role="tab">Chapters</button>
-        <button class="feature-item" data-feature="export" role="tab" hidden>Export</button>
         <button class="feature-item" data-feature="youtube-pack" role="tab">YT Pack</button>
         <button class="feature-item" data-feature="viral-clips" role="tab">Viral Clips</button>
         <button class="feature-item" data-feature="blog-article" role="tab">Blog</button>
         <button class="feature-item" data-feature="settings" role="tab">Settings</button>
       </nav>
 
-      <footer class="sidebar-footer" id="platform-info">…</footer>
-    </aside>
+      <main id="detail" aria-live="polite">
+        <!-- ───────── Transcribe view ───────── -->
+        <section class="feature-view active" data-view="transcribe">
+          <h2>Transcribe</h2>
+          <p class="hint">Uses the AI engine selected above. Result cached — all other features reuse it.</p>
+          <div class="actions">
+            <button id="btn-transcribe" class="primary">Transcribe</button>
+            <button id="btn-transcribe-refresh" class="ghost">Force re-run</button>
+            <button id="btn-transcribe-save-clean" class="ghost" disabled>Save clean .srt</button>
+            <span id="transcribe-status" class="status">ready</span>
+          </div>
+          <div id="transcribe-progress" class="progress-box" hidden>
+            <div class="progress-head">
+              <span id="transcribe-progress-label">running whisper…</span>
+              <span id="transcribe-progress-value">0%</span>
+            </div>
+            <div class="progress-track"><div id="transcribe-progress-bar" class="progress-bar"></div></div>
+          </div>
+          <div id="transcribe-results" class="results"></div>
+        </section>
 
-    <main id="detail" aria-live="polite">
-      <!-- ───────── AutoCut view (hidden — see nav comment) ───────── -->
-      <section class="feature-view" data-view="autocut">
-        <h2>AutoCut</h2>
-        <p class="hint">
-          Multi-pass pipeline: silence detection (offline, cached) →
-          AI content analysis (transcript required) → export.
-        </p>
+        <!-- ───────── Translate view ───────── -->
+        <section class="feature-view" data-view="translate">
+          <h2>Translate</h2>
+          <p class="hint">Translates to the output language set above. If already matching, originals returned unchanged.</p>
+          <div class="actions">
+            <button id="btn-translate" class="primary">Translate</button>
+            <span id="translate-status" class="status">ready</span>
+          </div>
+          <div id="translate-results" class="results"></div>
+        </section>
 
-        <!-- ── Step 1: Silence Detection ── -->
-        <div class="section-step">
-          <span class="step-num active" id="step1-num">1</span>
-          <h3>Silence Detection</h3>
-          <span class="step-badge" id="step1-badge">offline · DSP</span>
-        </div>
+        <!-- ───────── Summary view ───────── -->
+        <section class="feature-view" data-view="summary">
+          <h2>Summary</h2>
+          <p class="hint">Brief narrative summary of the transcript content.</p>
+          <div class="actions">
+            <button id="btn-summary" class="primary">Run summary</button>
+            <span id="summary-status" class="status">ready</span>
+          </div>
+          <div id="summary-results" class="results"></div>
+        </section>
 
-        <fieldset class="config-grid">
-          <legend>Config</legend>
-          <label><span>Auto threshold</span><input type="checkbox" id="cfg-auto" checked /></label>
-          <label id="lbl-threshold" class="dimmed"><span>Manual threshold</span>
-            <input type="range" id="cfg-threshold" min="0.005" max="0.2" step="0.005" value="0.03" disabled />
-            <output id="cfg-threshold-val">0.030</output>
-          </label>
-          <label><span>Min duration (s)</span>
-            <input type="range" id="cfg-min-duration" min="0.1" max="2.0" step="0.1" value="0.5" />
-            <output id="cfg-min-duration-val">0.5</output>
-          </label>
-          <label><span>Padding left (s)</span>
-            <input type="range" id="cfg-pad-left" min="0" max="1" step="0.05" value="0.1" />
-            <output id="cfg-pad-left-val">0.10</output>
-          </label>
-          <label><span>Padding right (s)</span>
-            <input type="range" id="cfg-pad-right" min="0" max="1" step="0.05" value="0.1" />
-            <output id="cfg-pad-right-val">0.10</output>
-          </label>
-          <label><span>Remove spikes (s)</span>
-            <input type="range" id="cfg-spike" min="0" max="1" step="0.05" value="0.2" />
-            <output id="cfg-spike-val">0.20</output>
-          </label>
-        </fieldset>
+        <!-- ───────── Chapters view ───────── -->
+        <section class="feature-view" data-view="chapters">
+          <h2>Chapters</h2>
+          <p class="hint">First chapter is always pinned to <code>00:00</code>.</p>
+          <div class="actions">
+            <button id="btn-chapters" class="primary">Generate chapters</button>
+            <button id="btn-chapters-copy" class="ghost">Copy YouTube format</button>
+            <span id="chapters-status" class="status">ready</span>
+          </div>
+          <div id="chapters-results" class="results"></div>
+        </section>
 
-        <div class="actions">
-          <button id="btn-detect" class="primary">Detect silence</button>
-          <span id="detect-status" class="status">ready</span>
-        </div>
+        <!-- ───────── YouTube Pack view ───────── -->
+        <section class="feature-view" data-view="youtube-pack">
+          <h2>YouTube Content Pack</h2>
+          <p class="hint">Titles, description, and SEO tags — one shot.</p>
+          <div class="actions">
+            <button id="btn-ytpack" class="primary">Generate pack</button>
+            <button id="btn-ytpack-copy" class="ghost">Copy all</button>
+            <span id="ytpack-status" class="status">ready</span>
+          </div>
+          <div id="ytpack-results" class="results"></div>
+        </section>
 
-        <div id="silence-results" class="results"></div>
+        <!-- ───────── Viral Clips view ───────── -->
+        <section class="feature-view" data-view="viral-clips">
+          <h2>Viral Clips</h2>
+          <p class="hint">Best 15-60s moments for Shorts, TikTok, Reels.</p>
+          <div class="actions">
+            <button id="btn-viral" class="primary">Find viral clips</button>
+            <span id="viral-status" class="status">ready</span>
+          </div>
+          <div id="viral-results" class="results"></div>
+        </section>
 
-        <!-- ── Step 2: Content Analysis ── -->
-        <div class="section-step">
-          <span class="step-num" id="step2-num">2</span>
-          <h3>Content Analysis</h3>
-          <span class="step-badge" id="step2-badge">transcript required</span>
-        </div>
+        <!-- ───────── Blog Article view ───────── -->
+        <section class="feature-view" data-view="blog-article">
+          <h2>Blog Article</h2>
+          <p class="hint">Structured article from transcript with headings and prose.</p>
+          <div class="actions">
+            <button id="btn-blog" class="primary">Generate article</button>
+            <button id="btn-blog-copy" class="ghost">Copy markdown</button>
+            <span id="blog-status" class="status">ready</span>
+          </div>
+          <div id="blog-results" class="results"></div>
+        </section>
 
-        <!-- Shown when no transcript loaded -->
-        <div id="autocut-no-transcript" class="no-transcript-nudge">
-          <span>Transcript needed for filler &amp; re-take detection.</span>
-          <button class="ghost small" id="btn-go-transcribe">Go to Transcribe →</button>
-        </div>
+        <!-- ───────── Settings view ───────── -->
+        <section class="feature-view" data-view="settings">
+          <h2>Settings</h2>
 
-        <!-- Shown when transcript is available -->
-        <div id="autocut-ai" hidden>
+          <h3>OpenAI API Key</h3>
+          <p class="hint">Used for Cloud transcription (Whisper) and Cloud AI (GPT-4o mini). Stored in OS keyring.</p>
+          <div id="openai-key-status" class="provider-card" style="margin-bottom:12px">Checking…</div>
           <div class="field-row">
-            <label for="autocut-ai-provider">Provider</label>
-            <select id="autocut-ai-provider">
-              <option value="mlx" selected>MLX (local)</option>
-              <option value="claude">Claude</option>
-              <option value="openAi">OpenAI</option>
-              <option value="gemini">Gemini</option>
-              <option value="ollama">Ollama</option>
-              <option value="openRouter">OpenRouter</option>
-            </select>
-          </div>
-          <div class="field-row">
-            <label for="autocut-ai-model">Model</label>
-            <input id="autocut-ai-model" type="text" value="mlx-community/gemma-4-E4B-it-4bit" placeholder="e.g. anthropic/claude-3-5-sonnet" />
-          </div>
-
-          <div class="actions">
-            <button id="btn-detect-fillers" class="ghost">Detect Fillers</button>
-            <span id="filler-status" class="status"></span>
-          </div>
-          <div id="filler-results" class="results"></div>
-
-          <div class="actions">
-            <button id="btn-detect-duplicates" class="ghost">Detect Re-takes</button>
-            <span id="duplicate-status" class="status"></span>
-          </div>
-          <div id="duplicate-results" class="results"></div>
-
-          <div class="field-row">
-            <label for="autocut-ai-instruction">AI instruction</label>
-            <input id="autocut-ai-instruction" type="text"
-              placeholder="e.g. Remove intro and any sponsor mentions" />
+            <label for="ai-key">API key</label>
+            <input id="ai-key" type="password" placeholder="sk-…" />
           </div>
           <div class="actions">
-            <button id="btn-ai-prompt-cut" class="ghost">Apply AI Cut</button>
-            <span id="ai-prompt-status" class="status"></span>
+            <button id="btn-save-key" class="primary">Save key</button>
+            <button id="btn-delete-key" class="ghost">Delete key</button>
+            <span id="ai-status" class="status"></span>
           </div>
-          <div id="ai-prompt-results" class="results"></div>
-        </div>
 
-        <!-- ── Step 3: Export ── -->
-        <div class="section-step">
-          <span class="step-num" id="step3-num">3</span>
-          <h3>Export</h3>
-          <span class="step-badge" id="step3-badge">run detection first</span>
-        </div>
-
-        <div id="autocut-export" hidden>
-          <div id="autocut-export-stats" class="hint" style="margin-bottom:12px"></div>
-          <div class="actions">
-            <button id="btn-export-mp4" class="primary">Export MP4</button>
-            <button id="btn-export-fcp" class="ghost">FCPXML</button>
-            <button id="btn-export-premiere" class="ghost">Premiere XML</button>
-            <button id="btn-export-resolve" class="ghost">Resolve XML</button>
-            <span id="export-status" class="status"></span>
+          <h3>Updates</h3>
+          <div class="update-section">
+            <div class="update-status-row">
+              <span id="update-status-text">Click to check for updates</span>
+              <button id="btn-check-update" class="ghost small">Check now</button>
+            </div>
+            <div id="update-available" class="update-available" hidden>
+              <p><strong>New version available:</strong> <span id="update-version"></span></p>
+              <p id="update-notes" class="hint"></p>
+              <button id="btn-do-update" class="primary">Download &amp; Install</button>
+              <div id="update-progress" class="progress-box" hidden>
+                <div class="progress-head">
+                  <span>Downloading…</span>
+                  <span id="update-progress-pct">0%</span>
+                </div>
+                <div class="progress-track"><div id="update-progress-bar" class="progress-bar"></div></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <!-- ───────── Transcribe view ───────── -->
-      <section class="feature-view active" data-view="transcribe">
-        <h2>Transcribe</h2>
-        <p class="hint">
-          Result cached by source path — Translate / Summary / Chapters reuse it automatically.
-        </p>
-
-        <div class="field-row">
-          <label for="transcribe-backend">Backend</label>
-          <select id="transcribe-backend">
-            <option value="mlx">MLX Whisper (local · Apple Silicon)</option>
-            <option value="openai">OpenAI Whisper (cloud · any platform)</option>
-          </select>
-        </div>
-        <div class="field-row">
-          <label for="transcribe-model">Model</label>
-          <input id="transcribe-model" type="text" value="mlx-community/whisper-large-v3-turbo" placeholder="e.g. whisper-large-v3-turbo" />
-        </div>
-        <div class="field-row">
-          <label for="transcribe-lang">Language hint</label>
-          <input id="transcribe-lang" type="text" placeholder="auto (blank) or e.g. en, vi, ja" />
-        </div>
-
-        <div class="actions">
-          <button id="btn-transcribe" class="primary">Transcribe</button>
-          <button id="btn-transcribe-refresh" class="ghost">Force re-run</button>
-          <button id="btn-transcribe-save" class="ghost" disabled>Save .srt</button>
-          <button id="btn-transcribe-save-txt" class="ghost" disabled>Save .txt</button>
-          <button id="btn-transcribe-save-clean" class="ghost" disabled>Save clean .srt</button>
-          <span id="transcribe-status" class="status">ready</span>
-        </div>
-
-        <div id="transcribe-progress" class="progress-box" hidden>
-          <div class="progress-head">
-            <span id="transcribe-progress-label">running whisper…</span>
-            <span id="transcribe-progress-value">0%</span>
-          </div>
-          <div class="progress-track"><div id="transcribe-progress-bar" class="progress-bar"></div></div>
-        </div>
-
-        <div id="transcribe-results" class="results"></div>
-      </section>
-
-      <!-- ───────── Translate view ───────── -->
-      <section class="feature-view" data-view="translate">
-        <h2>Translate</h2>
-        <p class="hint">
-          If the source language already matches the target, originals are returned unchanged.
-        </p>
-        <div class="field-row">
-          <label for="translate-target">Target language</label>
-          <input id="translate-target" type="text" value="vi" />
-        </div>
-        <div class="actions">
-          <button id="btn-translate" class="primary">Translate</button>
-          <button id="btn-translate-save" class="ghost" disabled>Save .srt</button>
-          <button id="btn-translate-save-txt" class="ghost" disabled>Save .txt</button>
-          <span id="translate-status" class="status">ready</span>
-        </div>
-        <div id="translate-results" class="results"></div>
-      </section>
-
-      <!-- ───────── Summary view ───────── -->
-      <section class="feature-view" data-view="summary">
-        <h2>Summary</h2>
-        <div class="field-row">
-          <label for="summary-style">Style</label>
-          <select id="summary-style">
-            <option value="brief" selected>Brief narrative</option>
-            <option value="keyPoints">Key points</option>
-            <option value="actionItems">Action items</option>
-          </select>
-        </div>
-        <div class="actions">
-          <button id="btn-summary" class="primary">Run summary</button>
-          <span id="summary-status" class="status">ready</span>
-        </div>
-        <div id="summary-results" class="results"></div>
-      </section>
-
-      <!-- ───────── Chapters view ───────── -->
-      <section class="feature-view" data-view="chapters">
-        <h2>Chapters</h2>
-        <p class="hint">First chapter is always pinned to <code>00:00</code>.</p>
-        <div class="actions">
-          <button id="btn-chapters" class="primary">Generate chapters</button>
-          <button id="btn-chapters-copy" class="ghost">Copy YouTube format</button>
-          <span id="chapters-status" class="status">ready</span>
-        </div>
-        <div id="chapters-results" class="results"></div>
-      </section>
-
-      <!-- ───────── YouTube Pack view ───────── -->
-      <section class="feature-view" data-view="youtube-pack">
-        <h2>YouTube Content Pack</h2>
-        <p class="hint">Titles, description, and SEO tags — one shot.</p>
-        <div class="actions">
-          <button id="btn-ytpack" class="primary">Generate pack</button>
-          <button id="btn-ytpack-copy" class="ghost">Copy all</button>
-          <span id="ytpack-status" class="status">ready</span>
-        </div>
-        <div id="ytpack-results" class="results"></div>
-      </section>
-
-      <!-- ───────── Viral Clips view ───────── -->
-      <section class="feature-view" data-view="viral-clips">
-        <h2>Viral Clips</h2>
-        <p class="hint">Best 15-60s moments for Shorts, TikTok, Reels.</p>
-        <div class="actions">
-          <button id="btn-viral" class="primary">Find viral clips</button>
-          <span id="viral-status" class="status">ready</span>
-        </div>
-        <div id="viral-results" class="results"></div>
-      </section>
-
-      <!-- ───────── Blog Article view ───────── -->
-      <section class="feature-view" data-view="blog-article">
-        <h2>Blog Article</h2>
-        <p class="hint">Structured article from transcript with headings and prose.</p>
-        <div class="actions">
-          <button id="btn-blog" class="primary">Generate article</button>
-          <button id="btn-blog-copy" class="ghost">Copy markdown</button>
-          <span id="blog-status" class="status">ready</span>
-        </div>
-        <div id="blog-results" class="results"></div>
-      </section>
-
-      <!-- ───────── Export view ───────── -->
-      <section class="feature-view" data-view="export">
-        <h2>Export</h2>
-        <p class="hint">
-          Export controls live in the <strong>AutoCut</strong> tab — run
-          silence detection first, then use the Export section that appears
-          below the results.
-        </p>
-      </section>
-
-      <!-- ───────── Settings view ───────── -->
-      <section class="feature-view" data-view="settings">
-        <h2>Settings</h2>
-        <p class="hint">Store API keys in the OS keyring — never in plain text.</p>
-
-        <div id="provider-grid" class="provider-grid">Loading providers…</div>
-
-        <div class="field-row">
-          <label for="ai-provider">Provider</label>
-          <select id="ai-provider">
-            <option value="claude">Claude</option>
-            <option value="openAi">OpenAI</option>
-            <option value="gemini">Gemini</option>
-            <option value="ollama">Ollama</option>
-            <option value="openRouter">OpenRouter</option>
-          </select>
-        </div>
-        <div class="field-row">
-          <label for="ai-key">API key</label>
-          <input id="ai-key" type="password" placeholder="sk-…" />
-        </div>
-        <div class="actions">
-          <button id="btn-save-key" class="primary">Save key</button>
-          <button id="btn-delete-key" class="ghost">Delete key</button>
-          <button id="btn-refresh-providers" class="ghost">Refresh status</button>
-          <span id="ai-status" class="status"></span>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+    </div>
 
     <script src="js/main.js" type="module"></script>
   </body>

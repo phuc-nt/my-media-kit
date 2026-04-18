@@ -3,18 +3,15 @@
 // Results are stored in the cut store and the onChanged callback triggers
 // the export panel to refresh.
 
-import { getSource } from "../source-store.js";
+import { getSource, getAiConfig } from "../source-store.js";
 import { escapeHtml, formatMs, setStatus } from "../util.js";
 import { setFillerCuts, setDuplicateCuts, setAiPromptCuts } from "./autocut-cut-store.js";
-import { wireProviderModelSync } from "./provider-model-defaults.js";
 
 const { invoke } = window.__TAURI__.core;
 
 function readAiConfig() {
-  return {
-    provider: document.getElementById("autocut-ai-provider").value,
-    model: document.getElementById("autocut-ai-model").value.trim(),
-  };
+  const { provider, model } = getAiConfig();
+  return { provider, model };
 }
 
 function getSegments() {
@@ -74,8 +71,6 @@ function switchToTranscribe() {
 
 export function initAiPanel(onChanged) {
   const panel = document.getElementById("autocut-ai");
-
-  wireProviderModelSync("autocut-ai-provider", "autocut-ai-model");
 
   // "Go to Transcribe" nudge button
   document.getElementById("btn-go-transcribe")?.addEventListener("click", switchToTranscribe);

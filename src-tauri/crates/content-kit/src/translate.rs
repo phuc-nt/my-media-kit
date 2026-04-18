@@ -76,16 +76,49 @@ fn primary_tag(tag: &str) -> &str {
     tag.split('-').next().unwrap_or(tag).trim()
 }
 
-pub fn system_prompt(target_language_name: &str) -> String {
+/// `summary_hint` — brief content description injected into the system prompt so
+/// the model can maintain consistent terminology and proper-noun romanization.
+pub fn system_prompt(target_language_name: &str, summary_hint: Option<&str>) -> String {
+    let hint_section = summary_hint
+        .filter(|h| !h.trim().is_empty())
+        .map(|h| format!(
+            "\nContent context (use for consistent terminology and proper-noun \
+             romanization across all batches): {h}"
+        ))
+        .unwrap_or_default();
     format!(
-        "You translate video transcripts. Respond in {target_language_name}. \
-         Preserve meaning, tone, and speaker intent. Keep numbers, names, and \
-         technical terms intact. Do NOT summarise, omit, or add content. \
-         Return ONLY the requested JSON — no prose, no markdown fences."
+        "You are a professional subtitle translator. Your ONLY job is to translate \
+         text into {target_language_name}.{hint_section}\n\
+         CRITICAL RULES:\n\
+         - Every output string MUST be written entirely in {target_language_name}.\n\
+         - Do NOT output Chinese characters, Japanese characters, or any other script.\n\
+         - For proper nouns (names, places) you cannot translate, write them in Latin \
+           script (romanization) or keep the original spelling — never use CJK characters.\n\
+         - Preserve meaning, tone, and speaker intent.\n\
+         - Do NOT summarise, omit, or add content.\n\
+         - Return ONLY the requested JSON — no prose, no markdown fences."
     )
 }
 
-pub fn user_prompt(batch: &TranscriptBatch, target_language_name: &str) -> String {
+/// `prev_context` — last few already-translated lines from the preceding batch,
+/// included so the model maintains narrative continuity.
+pub fn user_prompt(
+    batch: &TranscriptBatch,
+    target_language_name: &str,
+    prev_context: &[String],
+) -> String {
+    let context_section = if !prev_context.is_empty() {
+        format!(
+            "Previous translated lines (context only — do NOT include in output):\n{}\n\n",
+            prev_context
+                .iter()
+                .map(|l| format!("  • {l}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    } else {
+        String::new()
+    };
     let lines = batch
         .segments
         .iter()
@@ -93,9 +126,11 @@ pub fn user_prompt(batch: &TranscriptBatch, target_language_name: &str) -> Strin
         .map(|(i, s)| format!("{i}. {}", s.text.trim()))
         .collect::<Vec<_>>()
         .join("\n");
+    // /no_think disables Qwen3 reasoning mode; ignored by other models.
     format!(
-        "Translate every numbered line into {target_language_name}. Return a \
-         JSON object with a `translations` array containing exactly {} strings \
+        "/no_think\n{context_section}Translate every numbered line into {target_language_name}. \
+         ALL output strings must be in {target_language_name} only — no other scripts. \
+         Return a JSON object with a `translations` array containing exactly {} strings \
          in the same order. Each string must be the translation of the line \
          with the same index.\n\nLines:\n{lines}",
         batch.segments.len()
@@ -116,9 +151,48 @@ pub fn response_schema() -> Value {
     })
 }
 
-#[derive(Debug, Deserialize)]
-struct TranslateResponse {
-    translations: Vec<String>,
+/// Robustly extract a translations list from whatever the model returned.
+/// Local 7B models drift between several shapes; we accept all of them:
+///   - `{"translations": ["a","b"]}` — canonical
+///   - `{"translations": "a"}`       — single string for 1-segment batches
+///   - `["a","b"]`                   — bare array (object envelope dropped)
+///   - `"a"`                         — bare string for 1-segment batches
+///   - `{"0": "a", "1": "b"}`        — numeric-keyed object
+/// Anything else returns Err so the retry loop can take another swing.
+fn parse_translations(value: &Value) -> Result<Vec<String>, String> {
+    if let Some(field) = value.get("translations") {
+        return coerce_to_string_vec(field);
+    }
+    if value.is_array() || value.is_string() {
+        return coerce_to_string_vec(value);
+    }
+    if let Some(obj) = value.as_object() {
+        let mut entries: Vec<(usize, String)> = obj
+            .iter()
+            .filter_map(|(k, v)| Some((k.parse::<usize>().ok()?, v.as_str()?.to_string())))
+            .collect();
+        if !entries.is_empty() {
+            entries.sort_by_key(|(i, _)| *i);
+            return Ok(entries.into_iter().map(|(_, s)| s).collect());
+        }
+    }
+    Err(format!(
+        "could not extract translations from response shape: {value}"
+    ))
+}
+
+fn coerce_to_string_vec(v: &Value) -> Result<Vec<String>, String> {
+    match v {
+        Value::Array(arr) => Ok(arr
+            .iter()
+            .map(|item| match item {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            })
+            .collect()),
+        Value::String(s) => Ok(vec![s.clone()]),
+        other => Err(format!("expected array or string, got: {other}")),
+    }
 }
 
 #[async_trait]
@@ -166,6 +240,7 @@ impl<'a> TranslateRunner for ProviderTranslateRunner<'a> {
         let target_name = language_display_name(&options.target_language);
         let batches = chunk_segments(segments, options.max_batch_seconds);
         let mut out = Vec::with_capacity(segments.len());
+        let mut prev_context: Vec<String> = Vec::new();
 
         for batch in &batches {
             let translations = translate_batch_with_retry(
@@ -173,6 +248,8 @@ impl<'a> TranslateRunner for ProviderTranslateRunner<'a> {
                 model,
                 batch,
                 target_name,
+                None,
+                &prev_context,
             )
             .await?;
 
@@ -180,8 +257,13 @@ impl<'a> TranslateRunner for ProviderTranslateRunner<'a> {
             // already tried to get an exact count. Any remaining drift means
             // we give the user an almost-translated transcript rather than
             // failing the whole run.
-            let aligned =
-                align_to_originals(&batch.segments, translations);
+            let aligned = align_to_originals(&batch.segments, translations);
+            // Slide context window: keep last 5 translated texts for next batch.
+            prev_context.extend(aligned.iter().cloned());
+            if prev_context.len() > 5 {
+                let drain = prev_context.len() - 5;
+                prev_context.drain(..drain);
+            }
             for (original, translated_text) in batch.segments.iter().zip(aligned.into_iter()) {
                 let mut translated_segment = original.clone();
                 translated_segment.text = translated_text;
@@ -199,77 +281,109 @@ impl<'a> TranslateRunner for ProviderTranslateRunner<'a> {
     }
 }
 
-/// Ask the provider once, and if the returned array length does not match
-/// the batch, ask a second time with an even more explicit instruction. We
-/// do not fail on mismatch here — downstream `align_to_originals` pads with
-/// the source text so the user always gets something back.
-async fn translate_batch_with_retry(
+/// Maximum attempts to translate a single batch before giving up. Local
+/// models occasionally drift on schema; the retry loop restates the
+/// contract more aggressively each round.
+pub const MAX_BATCH_ATTEMPTS: usize = 3;
+
+/// Translate one batch. Retries up to `MAX_BATCH_ATTEMPTS` times on parse
+/// failures or count mismatches, escalating the prompt instructions each
+/// round. Returns the best attempt found (downstream `align_to_originals`
+/// pads any remaining drift) — only fails when every attempt errors at the
+/// network/provider layer or returns truly unparseable text.
+pub async fn translate_batch_with_retry(
     provider: &dyn Provider,
     model: &str,
     batch: &TranscriptBatch,
     target_name: &str,
+    summary_hint: Option<&str>,
+    prev_context: &[String],
 ) -> Result<Vec<String>, AiProviderError> {
-    let req = CompletionRequest {
-        // Translations can be verbose: 25-second batches produce ~10-15 lines
-        // each averaging ~30 tokens in the target language → ~500 tokens output.
-        // 4096 gives 8× headroom; 2048 was too tight for long-sentence EN clips.
-        max_tokens: 4096,
-        ..CompletionRequest::structured(
-            model,
-            system_prompt(target_name),
-            user_prompt(batch, target_name),
-            "TranslatedBatch",
-            response_schema(),
-        )
-    };
-    let value = provider.complete(req).await?;
-    let parsed: TranslateResponse = serde_json::from_value(value)
-        .map_err(|e| AiProviderError::Malformed(format!("translate parse: {e}")))?;
-
-    if parsed.translations.len() == batch.segments.len() {
-        return Ok(parsed.translations);
-    }
-
-    // Retry once — restate the count explicitly and re-send. Small local
-    // models sometimes drop a line when a run has lots of short segments.
-    let retry_user = format!(
-        "{}\n\nIMPORTANT: you returned {} strings on the previous attempt \
-         but exactly {} are required — one per numbered line, same order, \
-         no omissions. Retry now.",
-        user_prompt(batch, target_name),
-        parsed.translations.len(),
-        batch.segments.len(),
-    );
-    let retry_req = CompletionRequest {
-        max_tokens: 4096,
-        ..CompletionRequest::structured(
-            model,
-            system_prompt(target_name),
-            retry_user,
-            "TranslatedBatch",
-            response_schema(),
-        )
-    };
-    let retry_value = provider.complete(retry_req).await?;
-    let retry_parsed: TranslateResponse = serde_json::from_value(retry_value)
-        .map_err(|e| AiProviderError::Malformed(format!("translate parse: {e}")))?;
-
-    // Return whichever attempt is closer to the expected length — caller
-    // pads the rest.
     let want = batch.segments.len();
-    let first_drift = (parsed.translations.len() as i64 - want as i64).abs();
-    let retry_drift = (retry_parsed.translations.len() as i64 - want as i64).abs();
-    if retry_drift <= first_drift {
-        Ok(retry_parsed.translations)
-    } else {
-        Ok(parsed.translations)
+    let mut best: Option<Vec<String>> = None;
+    let mut last_err: Option<AiProviderError> = None;
+
+    for attempt in 0..MAX_BATCH_ATTEMPTS {
+        let user = if attempt == 0 {
+            user_prompt(batch, target_name, prev_context)
+        } else {
+            // Escalate: tell the model exactly what went wrong last time.
+            let prev_len = best.as_ref().map(|v| v.len()).unwrap_or(0);
+            format!(
+                "{}\n\nIMPORTANT: previous attempt {} — required exactly {} \
+                 strings in the `translations` array (one per numbered line). \
+                 Return ONLY a JSON object: {{\"translations\": [\"...\", \"...\"]}}. \
+                 No prose, no markdown.",
+                user_prompt(batch, target_name, prev_context),
+                if prev_len == 0 {
+                    "could not be parsed".to_string()
+                } else {
+                    format!("returned {prev_len} strings")
+                },
+                want,
+            )
+        };
+
+        let req = CompletionRequest {
+            // Translations can be verbose: 25-second batches produce ~10-15 lines
+            // each averaging ~30 tokens in the target language → ~500 tokens output.
+            // 4096 gives 8× headroom; 2048 was too tight for long-sentence EN clips.
+            max_tokens: 4096,
+            ..CompletionRequest::structured(
+                model,
+                system_prompt(target_name, summary_hint),
+                user,
+                "TranslatedBatch",
+                response_schema(),
+            )
+        };
+
+        match provider.complete(req).await {
+            Ok(value) => match parse_translations(&value) {
+                Ok(translations) => {
+                    let exact = translations.len() == want;
+                    let better = match &best {
+                        None => true,
+                        Some(prev) => {
+                            let d_new = (translations.len() as i64 - want as i64).abs();
+                            let d_old = (prev.len() as i64 - want as i64).abs();
+                            d_new < d_old
+                        }
+                    };
+                    if better {
+                        best = Some(translations);
+                    }
+                    if exact {
+                        return Ok(best.unwrap());
+                    }
+                }
+                Err(parse_err) => {
+                    last_err = Some(AiProviderError::Malformed(format!(
+                        "translate parse (attempt {}/{}): {parse_err}",
+                        attempt + 1,
+                        MAX_BATCH_ATTEMPTS
+                    )));
+                }
+            },
+            Err(e) => {
+                last_err = Some(e);
+            }
+        }
     }
+
+    // Prefer the best parsed result (caller pads/truncates) over a hard error.
+    if let Some(t) = best {
+        return Ok(t);
+    }
+    Err(last_err.unwrap_or_else(|| {
+        AiProviderError::Malformed("translate: no usable response from provider".into())
+    }))
 }
 
 /// Force the translations array to match the batch length by padding with
 /// the original text on under-run and truncating on over-run. Preserves
 /// alignment at index positions 0..min(len, expected).
-fn align_to_originals(
+pub fn align_to_originals(
     originals: &[TranscriptionSegment],
     mut translations: Vec<String>,
 ) -> Vec<String> {
@@ -344,10 +458,32 @@ mod tests {
             first_segment_index: 0,
             segments: vec![seg(0, 1000, "hello"), seg(1000, 2000, "world")],
         };
-        let p = user_prompt(&batch, "Vietnamese");
+        let p = user_prompt(&batch, "Vietnamese", &[]);
         assert!(p.contains("0. hello"));
         assert!(p.contains("1. world"));
         assert!(p.contains("exactly 2 strings"));
+    }
+
+    #[test]
+    fn user_prompt_includes_prev_context() {
+        let batch = TranscriptBatch {
+            batch_index: 1,
+            first_segment_index: 2,
+            segments: vec![seg(2000, 3000, "next line")],
+        };
+        let ctx = vec!["Xin chào".to_string(), "Thế giới".to_string()];
+        let p = user_prompt(&batch, "Vietnamese", &ctx);
+        assert!(p.contains("Xin chào"));
+        assert!(p.contains("Thế giới"));
+        assert!(p.contains("context only"));
+    }
+
+    #[test]
+    fn system_prompt_includes_summary_hint() {
+        let p = system_prompt("Vietnamese", Some("A talk about rockets"));
+        assert!(p.contains("A talk about rockets"));
+        let p_no_hint = system_prompt("Vietnamese", None);
+        assert!(!p_no_hint.contains("Content context"));
     }
 
     #[test]

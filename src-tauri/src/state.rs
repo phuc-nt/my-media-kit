@@ -32,10 +32,22 @@ pub struct TranscriptEntry {
     pub segments: Vec<TranscriptionSegment>,
 }
 
-#[derive(Default)]
 pub struct AppState {
     pub pcm: Mutex<HashMap<PathBuf, Arc<Vec<f32>>>>,
     pub transcripts: Mutex<HashMap<PathBuf, Arc<TranscriptEntry>>>,
+    /// PID of the mlx_lm.server process spawned by this app, if any.
+    /// Killed when the app exits.
+    pub mlx_server_pid: Mutex<Option<u32>>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            pcm: Mutex::new(HashMap::new()),
+            transcripts: Mutex::new(HashMap::new()),
+            mlx_server_pid: Mutex::new(None),
+        }
+    }
 }
 
 impl AppState {

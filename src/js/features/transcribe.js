@@ -1,15 +1,12 @@
 // Transcribe feature view.
 //
-// Backends:
-//   mlx    — MlxWhisperTranscriber (local, Apple Silicon, progress events)
-//   openai — OpenAI Whisper API (cloud, any platform, no progress events)
-//
-// Results cached in source-store so Translate / Summary / Chapters reuse
-// them without re-invoking whisper.
+// Backend (MLX vs OpenAI) is derived from the global AI engine setting.
+// Models are fixed: mlx → whisper-large-v3-turbo, cloud → whisper-1.
+// No per-feature config — everything comes from the source manager.
 
-import { getSource, setTranscript, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, setTranscript, setSummary, subscribe, markOutputDone } from "../source-store.js";
 import {
-  deriveSiblingPath,
+  deriveOutputPath,
   escapeHtml,
   formatMs,
   renderErrorBox,
@@ -23,7 +20,7 @@ import {
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-const BACKEND_MODEL_DEFAULTS = {
+const BACKEND_MODEL = {
   mlx: "mlx-community/whisper-large-v3-turbo",
   openai: "whisper-1",
 };
@@ -33,34 +30,26 @@ export function initTranscribeView() {
   const status = document.getElementById("transcribe-status");
   const btnRun = document.getElementById("btn-transcribe");
   const btnForce = document.getElementById("btn-transcribe-refresh");
-  const btnSaveSrt = document.getElementById("btn-transcribe-save");
-  const btnSaveTxt = document.getElementById("btn-transcribe-save-txt");
-  const backendSel = document.getElementById("transcribe-backend");
-  const modelInput = document.getElementById("transcribe-model");
+  const btnSaveClean = document.getElementById("btn-transcribe-save-clean");
 
   const progressBox = document.getElementById("transcribe-progress");
   const progressBar = document.getElementById("transcribe-progress-bar");
   const progressLabel = document.getElementById("transcribe-progress-label");
   const progressValue = document.getElementById("transcribe-progress-value");
 
-  // Sync model input when backend changes.
-  backendSel.addEventListener("change", () => {
-    const def = BACKEND_MODEL_DEFAULTS[backendSel.value];
-    if (def) modelInput.value = def;
-    // Progress bar only meaningful for MLX (streaming); hide hint for openai.
-    progressBox.hidden = true;
-  });
-
   let currentTranscript = null;
   let running = false;
+
+  function getBackend() {
+    const { mode } = getAiConfig();
+    return mode === "cloud" ? "openai" : "mlx";
+  }
 
   function setRunning(on, label = "running whisper…") {
     running = on;
     btnRun.disabled = on;
     btnForce.disabled = on;
     if (on) {
-      // MLX streams progress; OpenAI is a single blocking call — show
-      // indeterminate bar for both so the UI feels responsive.
       progressBox.hidden = false;
       progressLabel.textContent = label;
       progressBar.className = "progress-bar indeterminate";
@@ -73,24 +62,16 @@ export function initTranscribeView() {
     }
   }
 
-  const btnSaveClean = document.getElementById("btn-transcribe-save-clean");
-
-  function setSaveButtons(enabled) {
-    btnSaveSrt.disabled = !enabled;
-    btnSaveTxt.disabled = !enabled;
-    btnSaveClean.disabled = !enabled;
-  }
-
   function applyTranscript(out) {
     currentTranscript = out;
     setTranscript(out);
     renderSegments(out, results);
-    setSaveButtons(out?.segments?.length > 0);
+    btnSaveClean.disabled = !(out?.segments?.length > 0);
   }
 
   // MLX streams segment-level progress events.
   listen("mlx_whisper_progress", (event) => {
-    if (!running || backendSel.value !== "mlx") return;
+    if (!running || getBackend() !== "mlx") return;
     const { percent, current_ms, total_ms } = event.payload || {};
     if (typeof percent !== "number") return;
     progressBar.className = "progress-bar";
@@ -98,7 +79,7 @@ export function initTranscribeView() {
     progressValue.textContent = `${percent.toFixed(1)}%`;
     const cur = formatMs(current_ms || 0);
     const tot = total_ms ? formatMs(total_ms) : "?";
-    progressLabel.textContent = `running whisper… ${cur} / ${tot}`;
+    progressLabel.textContent = `transcribing… ${cur} / ${tot}`;
   });
 
   async function run(force) {
@@ -108,13 +89,18 @@ export function initTranscribeView() {
     results.innerHTML = "";
     setSaveButtons(false);
 
-    const backend = backendSel.value;
-    const model = modelInput.value.trim();
-    const langRaw = document.getElementById("transcribe-lang").value.trim();
-    const label =
-      backend === "openai"
-        ? force ? "re-running OpenAI Whisper…" : "running OpenAI Whisper…"
-        : force ? "re-running whisper…" : "running whisper…";
+    const backend = getBackend();
+    const model = BACKEND_MODEL[backend];
+
+    let label;
+    if (backend === "openai") {
+      label = force ? "re-running OpenAI Whisper…" : "running OpenAI Whisper…";
+    } else {
+      const ready = await invoke("mlx_model_ready").catch(() => true);
+      label = ready
+        ? (force ? "re-running whisper…" : "running whisper…")
+        : "downloading model (~1 GB) + transcribing…";
+    }
 
     setRunning(true, label);
 
@@ -122,25 +108,32 @@ export function initTranscribeView() {
       let out;
       if (backend === "openai") {
         out = await invoke("openai_whisper_transcribe", {
-          path: source.path,
-          language: langRaw || null,
-          model: model || null,
-          force: !!force,
+          path: source.path, language: null, model, force: !!force,
         });
       } else {
         out = await invoke("mlx_whisper_transcribe", {
-          path: source.path,
-          language: langRaw || null,
-          model: model || null,
-          force: !!force,
+          path: source.path, language: null, model, force: !!force,
         });
       }
       applyTranscript(out);
-      setStatus(
-        status,
-        `${out.segments.length} segments${out.fromCache ? " (cached)" : ""}`,
-        "ok",
-      );
+      setStatus(status, `${out.segments.length} segments${out.fromCache ? " (cached)" : ""}`, "ok");
+
+      // Auto-save SRT and TXT to output directory.
+      const srtPath = deriveOutputPath(source.outputDir, "transcript.srt");
+      const txtPath = deriveOutputPath(source.outputDir, "transcript.txt");
+      const srtContent = segmentsToSrt(out.segments);
+      const txtContent = segmentsToPlainText(out.segments);
+      await Promise.all([
+        srtPath ? invoke("save_text_file", { path: srtPath, content: srtContent }).catch(() => {}) : Promise.resolve(),
+        txtPath ? invoke("save_text_file", { path: txtPath, content: txtContent }).catch(() => {}) : Promise.resolve(),
+      ]);
+      markOutputDone("transcript");
+
+      // Auto-generate summary in background for use as translation context hint.
+      const { provider, model: aiModel, language: aiLang } = getAiConfig();
+      invoke("content_summary", {
+        request: { provider, model: aiModel, segments: out.segments, language: aiLang || "English" },
+      }).then((summary) => setSummary(summary)).catch(() => {});
     } catch (e) {
       console.error(e);
       renderErrorBox(results, String(e));
@@ -150,29 +143,8 @@ export function initTranscribeView() {
     }
   }
 
-  async function save(format) {
-    if (!currentTranscript?.segments?.length) return;
-    const source = getSource();
-    if (!source?.path) return;
-    const isSrt = format === "srt";
-    const suffix = isSrt ? ".transcript.srt" : ".transcript.txt";
-    const target = deriveSiblingPath(source.path, suffix);
-    const content = isSrt
-      ? segmentsToSrt(currentTranscript.segments)
-      : segmentsToPlainText(currentTranscript.segments);
-    try {
-      const written = await invoke("save_text_file", { path: target, content });
-      showToast(`saved → ${written}`, "ok");
-    } catch (e) {
-      console.error(e);
-      showToast(`save failed: ${e}`, "err");
-    }
-  }
-
   btnRun.addEventListener("click", () => run(false));
   btnForce.addEventListener("click", () => run(true));
-  btnSaveSrt.addEventListener("click", () => save("srt"));
-  btnSaveTxt.addEventListener("click", () => save("txt"));
   btnSaveClean.addEventListener("click", async () => {
     if (!currentTranscript?.segments?.length) return;
     const source = getSource();
@@ -181,9 +153,10 @@ export function initTranscribeView() {
       const cleaned = await invoke("content_clean_transcript", {
         segments: currentTranscript.segments,
       });
-      const target = deriveSiblingPath(source.path, ".clean.srt");
+      const target = deriveOutputPath(source.outputDir, "clean.srt");
       const content = segmentsToSrt(cleaned);
       const written = await invoke("save_text_file", { path: target, content });
+      markOutputDone("clean");
       showToast(`saved clean → ${written}`, "ok");
     } catch (e) {
       console.error(e);
@@ -191,13 +164,12 @@ export function initTranscribeView() {
     }
   });
 
-  // Refresh view when source changes.
   subscribe(async (state) => {
     if (running) return;
     if (!state.path) {
       results.innerHTML = `<p class="hint">no source selected</p>`;
       currentTranscript = null;
-      setSaveButtons(false);
+      btnSaveClean.disabled = true;
       return;
     }
     if (state.transcript) {
@@ -210,9 +182,9 @@ export function initTranscribeView() {
         applyTranscript(hit);
         setStatus(status, `${hit.segments.length} segments (cached)`, "ok");
       } else {
-        results.innerHTML = `<p class="hint">not transcribed yet — hit the button above</p>`;
+        results.innerHTML = `<p class="hint">not transcribed yet — hit Transcribe above</p>`;
         currentTranscript = null;
-        setSaveButtons(false);
+        btnSaveClean.disabled = true;
       }
     } catch (e) {
       renderErrorBox(results, String(e));
@@ -225,10 +197,8 @@ function renderSegments(out, container) {
     ? `<p class="hint">language: <code>${escapeHtml(out.language)}</code></p>`
     : "";
   const rows = out.segments
-    .map(
-      (s) =>
-        `<tr><td>${formatMs(s.start_ms)}</td><td>${formatMs(s.end_ms)}</td><td>${escapeHtml(s.text)}</td></tr>`,
-    )
+    .map((s) =>
+      `<tr><td>${formatMs(s.start_ms)}</td><td>${formatMs(s.end_ms)}</td><td>${escapeHtml(s.text)}</td></tr>`)
     .join("");
   container.innerHTML = `
     ${lang}

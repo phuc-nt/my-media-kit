@@ -5,8 +5,11 @@
 // URL support: if the user pastes a YouTube URL, the panel downloads it via
 // yt_dlp_download (cached by video ID) and then treats the local path as the
 // source, identical to a dragged-in file.
+//
+// Drag-and-drop uses Tauri v2's webview.onDragDropEvent() API.
+// File dialog uses window.__TAURI__.dialog.open() (no bundler needed).
 
-import { getSource, setSourcePath, setTranscript, setProbe, subscribe, setAiConfig, getAiConfig } from "./source-store.js";
+import { getSource, setSourcePath, setTranscript, setProbe, subscribe, setAiConfig } from "./source-store.js";
 
 const { invoke } = window.__TAURI__.core;
 const { listen }  = window.__TAURI__.event;
@@ -14,15 +17,20 @@ const { listen }  = window.__TAURI__.event;
 // Patterns that identify a YouTube URL typed/pasted into the input.
 const YT_URL_RE = /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/)/;
 
+// Video/audio extensions accepted by the file dialog and drag-drop.
+const MEDIA_EXTENSIONS = [
+  "mp4", "mov", "mkv", "avi", "webm", "flv", "m4v", "ts",
+  "mp3", "wav", "m4a", "aac", "ogg", "flac", "wma",
+];
+
 export function initSourcePanel() {
-  const input    = document.getElementById("source-path");
-  const meta     = document.getElementById("source-meta");
-  const clearBtn = document.getElementById("btn-source-clear");
+  const input      = document.getElementById("source-path");
+  const meta       = document.getElementById("source-meta");
+  const clearBtn   = document.getElementById("btn-source-clear");
+  const browseBtn  = document.getElementById("btn-source-browse");
   const pickerArea = document.getElementById("source-picker-area");
 
-  // ── Download progress bar (reuse transcribe-progress structure) ──────────
-  // We inject a lightweight inline progress box into the source picker area
-  // rather than borrowing the transcribe tab's bar.
+  // ── Download progress bar ──────────────────────────────────────────────
   const progressBox = document.createElement("div");
   progressBox.className = "progress-box";
   progressBox.hidden = true;
@@ -57,7 +65,6 @@ export function initSourcePanel() {
     ytBar.style.width = "0%";
   }
 
-  // Listen for yt-dlp progress events emitted by the backend.
   listen("yt_dlp_progress", (event) => {
     const { percent, label } = event.payload || {};
     showProgress(label || "downloading…", percent);
@@ -77,11 +84,10 @@ export function initSourcePanel() {
         audioChannels: p.audio_channels,
       });
       meta.dataset.error = "";
-      // Auto-load cached transcript so all tabs have it immediately.
       try {
         const cached = await invoke("get_cached_transcript", { path });
         if (cached) setTranscript(cached);
-      } catch (_) { /* no cache — user will transcribe manually */ }
+      } catch (_) { /* no cache */ }
     } catch (err) {
       setProbe(null);
       const msg = String(err);
@@ -94,7 +100,7 @@ export function initSourcePanel() {
     }
   }
 
-  // ── Handle a YouTube URL: download then commit the local path ────────────
+  // ── Handle a YouTube URL ────────────────────────────────────────────────
   async function commitYouTubeUrl(url) {
     input.disabled = true;
     showProgress("resolving video ID…", null);
@@ -115,7 +121,7 @@ export function initSourcePanel() {
     }
   }
 
-  // ── Entry point: called on change/blur/drop ───────────────────────────────
+  // ── Entry point ──────────────────────────────────────────────────────────
   async function commitSource() {
     const val = input.value.trim();
     if (!val) return;
@@ -129,23 +135,43 @@ export function initSourcePanel() {
   input.addEventListener("change", commitSource);
   input.addEventListener("blur",   commitSource);
 
-  // Drag-and-drop: Tauri extends File with an absolute `.path` property.
-  pickerArea.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    pickerArea.classList.add("drag-active");
-  });
-  pickerArea.addEventListener("dragleave", () => {
-    pickerArea.classList.remove("drag-active");
-  });
-  pickerArea.addEventListener("drop", (e) => {
-    e.preventDefault();
-    pickerArea.classList.remove("drag-active");
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
-    const absPath = file.path || file.name;
-    if (absPath) {
-      input.value = absPath;
-      commitSource();
+  // ── Drag-and-drop via Tauri v2 webview API ───────────────────────────────
+  const webview = window.__TAURI__.webview?.getCurrentWebview?.();
+  if (webview?.onDragDropEvent) {
+    webview.onDragDropEvent((event) => {
+      const { type } = event.payload;
+      if (type === "enter" || type === "over") {
+        pickerArea.classList.add("drag-active");
+      } else if (type === "leave") {
+        pickerArea.classList.remove("drag-active");
+      } else if (type === "drop") {
+        pickerArea.classList.remove("drag-active");
+        const paths = event.payload.paths ?? [];
+        if (!paths.length) return;
+        const picked = paths.find(isMediaPath) ?? paths[0];
+        input.value = picked;
+        commitSource();
+      }
+    });
+  }
+
+  // ── File browser button (uses window.__TAURI__.dialog — no bundler) ─────
+  browseBtn.addEventListener("click", async () => {
+    try {
+      const selected = await window.__TAURI__.dialog.open({
+        multiple: false,
+        title: "Select a video or audio file",
+        filters: [
+          { name: "Media files", extensions: MEDIA_EXTENSIONS },
+          { name: "All files", extensions: ["*"] },
+        ],
+      });
+      if (selected) {
+        input.value = typeof selected === "string" ? selected : selected.path;
+        commitSource();
+      }
+    } catch (err) {
+      console.error("file dialog error:", err);
     }
   });
 
@@ -162,33 +188,26 @@ export function initSourcePanel() {
   });
 
   // ── Global AI config wiring ──────────────────────────────────────────
-  const aiProviderSel = document.getElementById("ai-provider-global");
-  const aiModelInput  = document.getElementById("ai-model-global");
-  const aiLangInput   = document.getElementById("ai-language-global");
+  const aiModeSel  = document.getElementById("ai-mode-global");
+  const aiLangInput = document.getElementById("ai-language-global");
 
-  const MODEL_DEFAULTS = {
-    mlx: "mlx-community/Qwen2.5-7B-Instruct-4bit",
-    claude: "claude-sonnet-4-5-20250929",
-    openAi: "gpt-4o-mini",
-    gemini: "gemini-2.0-flash",
-    ollama: "llama3.2",
-    openRouter: "anthropic/claude-3-5-sonnet",
-  };
+  invoke("check_platform").then(({ is_apple_silicon }) => {
+    if (!is_apple_silicon) {
+      const mlxOpt = aiModeSel.querySelector('option[value="local"]');
+      if (mlxOpt) mlxOpt.disabled = true;
+      aiModeSel.value = "cloud";
+      setAiConfig({ mode: "cloud" });
+    }
+  }).catch(() => {});
 
   function syncAiConfig() {
     setAiConfig({
-      provider: aiProviderSel.value,
-      model: aiModelInput.value.trim(),
+      mode: aiModeSel.value,
       language: aiLangInput.value.trim() || "Vietnamese",
     });
   }
 
-  aiProviderSel.addEventListener("change", () => {
-    const def = MODEL_DEFAULTS[aiProviderSel.value];
-    if (def) aiModelInput.value = def;
-    syncAiConfig();
-  });
-  aiModelInput.addEventListener("change", syncAiConfig);
+  aiModeSel.addEventListener("change", syncAiConfig);
   aiLangInput.addEventListener("change", syncAiConfig);
 
   // ── Status dots on sidebar tabs ─────────────────────────────────────
@@ -208,7 +227,7 @@ export function initSourcePanel() {
     });
   });
 
-  // ── Sidebar meta line (reflects source-store state) ─────────────────────
+  // ── Sidebar meta line ─────────────────────────────────────────────
   subscribe((state) => {
     if (!state.path) {
       meta.textContent   = "no file selected";
@@ -220,13 +239,21 @@ export function initSourcePanel() {
       return;
     }
     const probeBit = state.probe
-      ? ` · ${fmtDuration(state.probe.durationMs)} · ${state.probe.width}×${state.probe.height}`
+      ? ` · ${fmtDuration(state.probe.durationMs)}${state.probe.width ? ` · ${state.probe.width}×${state.probe.height}` : ""}`
       : "";
     const tBit = state.transcript
       ? ` · transcript (${state.transcript.segments.length} segs)`
       : "";
     meta.textContent = `${basename(state.path)}${probeBit}${tBit}`;
   });
+}
+
+function isMediaPath(p) {
+  const ext = p.split(".").pop()?.toLowerCase() ?? "";
+  return [
+    "mp4","mov","mkv","avi","webm","flv","m4v","ts",
+    "mp3","wav","m4a","aac","ogg","flac","wma",
+  ].includes(ext);
 }
 
 function basename(p) {

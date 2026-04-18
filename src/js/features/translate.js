@@ -1,9 +1,10 @@
 // Translate view. Reads the cached transcript from source-store, calls
 // content_translate, renders originals + translations side-by-side.
 
-import { getSource, getAiConfig, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, getSummary, subscribe, markOutputDone } from "../source-store.js";
 import {
-  deriveSiblingPath,
+  deriveOutputPath,
+  ensureAiReady,
   escapeHtml,
   formatMs,
   renderErrorBox,
@@ -16,35 +17,73 @@ import {
 } from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
+const { listen }  = window.__TAURI__.event;
 
 export function initTranslateView() {
   const results = document.getElementById("translate-results");
   const status = document.getElementById("translate-status");
   const btn = document.getElementById("btn-translate");
-  const btnSaveSrt = document.getElementById("btn-translate-save");
-  const btnSaveTxt = document.getElementById("btn-translate-save-txt");
+
+  // ── Progress bar (created inline, same pattern as YT download) ──────
+  const progressBox = document.createElement("div");
+  progressBox.className = "progress-box";
+  progressBox.hidden = true;
+  progressBox.innerHTML = `
+    <div class="progress-head">
+      <span id="translate-progress-label">translating…</span>
+      <span id="translate-progress-value">0%</span>
+    </div>
+    <div class="progress-track"><div id="translate-progress-bar" class="progress-bar indeterminate"></div></div>
+  `;
+  // Insert right after the action buttons row (.actions div)
+  (btn.closest(".actions") ?? btn.parentElement).insertAdjacentElement("afterend", progressBox);
+
+  const progBar   = progressBox.querySelector("#translate-progress-bar");
+  const progLabel = progressBox.querySelector("#translate-progress-label");
+  const progValue = progressBox.querySelector("#translate-progress-value");
+
+  function showProgress(batch, total) {
+    progressBox.hidden = false;
+    if (total > 0) {
+      const pct = ((batch - 1) / total) * 100;
+      progBar.className = "progress-bar";
+      progBar.style.width = `${pct.toFixed(1)}%`;
+      progLabel.textContent = `translating batch ${batch} / ${total}…`;
+      progValue.textContent = `${pct.toFixed(0)}%`;
+    } else {
+      progBar.className = "progress-bar indeterminate";
+      progValue.textContent = "…";
+    }
+  }
+  function hideProgress() {
+    progressBox.hidden = true;
+    progBar.style.width = "0%";
+    progBar.className = "progress-bar indeterminate";
+  }
+
+  listen("translate_progress", (event) => {
+    const { batch, total } = event.payload || {};
+    showProgress(batch, total);
+  });
 
   let lastResult = null;
-
-  function setSaveButtons(enabled) {
-    btnSaveSrt.disabled = !enabled;
-    btnSaveTxt.disabled = !enabled;
-  }
 
   btn.addEventListener("click", async () => {
     const source = getSource();
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model } = getAiConfig();
-    const target = document.getElementById("translate-target").value.trim() || "vi";
+    const { provider, model, language, mode } = getAiConfig();
+    if (!await ensureAiReady(mode, status)) return;
+    const target = language || "Vietnamese";
 
     setStatus(status, "translating…", "running");
     btn.disabled = true;
-    setSaveButtons(false);
     results.innerHTML = "";
+    showProgress(0, 0);
 
     try {
+      const summary = getSummary();
       const out = await invoke("content_translate", {
         request: {
           provider,
@@ -52,50 +91,42 @@ export function initTranslateView() {
           segments: source.transcript.segments,
           sourceLanguage: source.transcript.language ?? null,
           targetLanguage: target,
+          summaryHint: summary?.text ?? null,
         },
       });
       lastResult = out;
       renderTranslation(out, source.transcript.segments, results);
-      setSaveButtons(out?.segments?.length > 0);
       const tag = out.skipped ? "skipped (source already matches target)" : `translated to ${out.target_language}`;
       setStatus(status, tag, "ok");
+
+      // Auto-save SRT and TXT.
+      if (out?.segments?.length) {
+        const lang = (out.target_language || "vi").replace(/[^a-z0-9-]/gi, "");
+        const srtPath = deriveOutputPath(source.outputDir, `translate.${lang}.srt`);
+        const txtPath = deriveOutputPath(source.outputDir, `translate.${lang}.txt`);
+        const srtContent = segmentsToSrt(out.segments);
+        const txtContent = segmentsToPlainText(out.segments);
+        await Promise.all([
+          srtPath ? invoke("save_text_file", { path: srtPath, content: srtContent }).catch(() => {}) : Promise.resolve(),
+          txtPath ? invoke("save_text_file", { path: txtPath, content: txtContent }).catch(() => {}) : Promise.resolve(),
+        ]);
+        markOutputDone("translate");
+        showToast(`saved → ${srtPath}`, "ok");
+      }
     } catch (e) {
       console.error(e);
       renderErrorBox(results, String(e));
       setStatus(status, "failed", "err");
     } finally {
       btn.disabled = false;
+      hideProgress();
     }
   });
-
-  async function save(format) {
-    if (!lastResult?.segments?.length) return;
-    const source = getSource();
-    if (!source?.path) return;
-    const isSrt = format === "srt";
-    const lang = (lastResult.target_language || "vi").replace(/[^a-z0-9-]/gi, "");
-    const suffix = isSrt ? `.${lang}.srt` : `.${lang}.txt`;
-    const target = deriveSiblingPath(source.path, suffix);
-    const content = isSrt
-      ? segmentsToSrt(lastResult.segments)
-      : segmentsToPlainText(lastResult.segments);
-    try {
-      const written = await invoke("save_text_file", { path: target, content });
-      showToast(`saved → ${written}`, "ok");
-    } catch (e) {
-      console.error(e);
-      showToast(`save failed: ${e}`, "err");
-    }
-  }
-
-  btnSaveSrt.addEventListener("click", () => save("srt"));
-  btnSaveTxt.addEventListener("click", () => save("txt"));
 
   subscribe((state) => {
     if (!state.path || !state.transcript) {
       results.innerHTML = `<p class="hint">transcribe a source first, then translate</p>`;
       lastResult = null;
-      setSaveButtons(false);
     }
   });
 }

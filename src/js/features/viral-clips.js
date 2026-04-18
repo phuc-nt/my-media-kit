@@ -1,13 +1,16 @@
 // Viral Clips — find the best short-form moments for Shorts/Reels/TikTok.
 
-import { getSource, getAiConfig, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
 import {
+  deriveOutputPath,
+  ensureAiReady,
   escapeHtml,
   formatMs,
   renderErrorBox,
   requireSource,
   requireTranscript,
   setStatus,
+  showToast,
 } from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -22,7 +25,8 @@ export function initViralClipsView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language } = getAiConfig();
+    const { provider, model, language, mode } = getAiConfig();
+    if (!await ensureAiReady(mode, status)) return;
 
     setStatus(status, "scanning for viral moments…");
     results.innerHTML = "";
@@ -37,6 +41,14 @@ export function initViralClipsView() {
         },
       });
       renderClips(out, results);
+      const target = deriveOutputPath(source.outputDir, "viral-clips.json");
+      if (target) {
+        try {
+          await invoke("save_text_file", { path: target, content: JSON.stringify(out, null, 2) });
+          markOutputDone("viral-clips");
+          showToast(`saved → ${target}`, "ok");
+        } catch (_) {}
+      }
       setStatus(status, `${out.clips.length} clips found`, "ok");
     } catch (e) {
       console.error(e);

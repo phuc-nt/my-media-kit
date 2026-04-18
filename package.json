@@ -12,6 +12,7 @@
     "@tauri-apps/cli": "^2"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2"
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.0"
   }
 }

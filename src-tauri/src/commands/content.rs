@@ -8,11 +8,11 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::command;
+use tauri::{command, AppHandle, Emitter};
 
 use ai_kit::{Provider, ProviderRegistry, SecretStore, KeyringSecretStore};
 use content_kit::{
-    batch::TranscriptBatch,
+    batch::{chunk_segments, TranscriptBatch},
     blog_article::{BlogArticle, BlogArticleRunner, ProviderBlogArticleRunner},
     chapters::{ChapterList, ChapterRunner, ProviderChapterRunner},
     duplicate::{AiDuplicateDetector, DuplicateDetector, DUPLICATE_BATCH_SECONDS},
@@ -21,8 +21,8 @@ use content_kit::{
     summary::{ProviderSummaryRunner, SummaryResult, SummaryRunner, SummaryStyle},
     transcript_filler_scan,
     translate::{
-        ProviderTranslateRunner, TranslateOptions, TranslateResult, TranslateRunner,
-        DEFAULT_TARGET_LANGUAGE,
+        align_to_originals, language_display_name, should_skip, translate_batch_with_retry,
+        TranslateResult, DEFAULT_BATCH_SECONDS, DEFAULT_TARGET_LANGUAGE,
     },
     viral_clips::{ProviderViralClipRunner, ViralClipList, ViralClipRunner},
     youtube_pack::{ProviderYouTubePackRunner, YouTubePack, YouTubePackRunner},
@@ -152,31 +152,88 @@ pub struct TranslateCommandRequest {
     /// Target BCP-47 language. Defaults to `"vi"` per v2 rules.
     #[serde(default)]
     pub target_language: Option<String>,
+    /// Optional content summary injected into the system prompt so the model
+    /// can maintain consistent terminology across batches.
+    #[serde(default)]
+    pub summary_hint: Option<String>,
 }
+
+/// Tauri event emitted after each batch finishes. Payload: `{ batch, total, percent }`.
+pub const TRANSLATE_PROGRESS_EVENT: &str = "translate_progress";
 
 #[command]
 pub async fn content_translate(
+    app: AppHandle,
     request: TranslateCommandRequest,
 ) -> Result<TranslateResult, String> {
+    let target_language = request
+        .target_language
+        .unwrap_or_else(|| DEFAULT_TARGET_LANGUAGE.to_string());
+
+    if should_skip(request.source_language.as_deref(), &target_language) {
+        return Ok(TranslateResult {
+            target_language,
+            source_language: request.source_language,
+            skipped: true,
+            segments: request.segments,
+        });
+    }
+
+    if request.segments.is_empty() {
+        return Ok(TranslateResult {
+            target_language,
+            source_language: request.source_language,
+            skipped: false,
+            segments: Vec::new(),
+        });
+    }
+
     let provider = resolve_provider(request.provider).await?;
-    let options = TranslateOptions {
-        target_language: request
-            .target_language
-            .unwrap_or_else(|| DEFAULT_TARGET_LANGUAGE.to_string()),
-        ..TranslateOptions::default()
-    };
-    let runner = ProviderTranslateRunner {
-        provider: provider.as_ref(),
-    };
-    runner
-        .run(
-            &request.segments,
-            request.source_language.as_deref(),
-            &options,
+    let target_name = language_display_name(&target_language);
+    let batches = chunk_segments(&request.segments, DEFAULT_BATCH_SECONDS);
+    let total = batches.len();
+    let mut out = Vec::with_capacity(request.segments.len());
+    let mut prev_context: Vec<String> = Vec::new();
+
+    for (i, batch) in batches.iter().enumerate() {
+        let _ = app.emit(TRANSLATE_PROGRESS_EVENT, serde_json::json!({
+            "batch": i + 1,
+            "total": total,
+            "percent": ((i as f64) / (total as f64)) * 100.0,
+        }));
+
+        let translations = translate_batch_with_retry(
+            provider.as_ref(),
             &request.model,
+            batch,
+            target_name,
+            request.summary_hint.as_deref(),
+            &prev_context,
         )
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+        let aligned = align_to_originals(&batch.segments, translations);
+        // Slide context window: keep last 5 translated texts for the next batch.
+        prev_context.extend(aligned.iter().cloned());
+        if prev_context.len() > 5 {
+            let drain = prev_context.len() - 5;
+            prev_context.drain(..drain);
+        }
+        for (original, translated_text) in batch.segments.iter().zip(aligned) {
+            let mut seg = original.clone();
+            seg.text = translated_text;
+            seg.language = Some(target_language.clone());
+            out.push(seg);
+        }
+    }
+
+    Ok(TranslateResult {
+        target_language,
+        source_language: request.source_language,
+        skipped: false,
+        segments: out,
+    })
 }
 
 #[command]

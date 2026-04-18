@@ -1,12 +1,15 @@
 // YouTube Content Pack — title suggestions, description, SEO tags.
 
-import { getSource, getAiConfig, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
 import {
+  deriveOutputPath,
+  ensureAiReady,
   escapeHtml,
   renderErrorBox,
   requireSource,
   requireTranscript,
   setStatus,
+  showToast,
 } from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -24,7 +27,8 @@ export function initYouTubePackView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language } = getAiConfig();
+    const { provider, model, language, mode } = getAiConfig();
+    if (!await ensureAiReady(mode, status)) return;
 
     setStatus(status, "generating…");
     results.innerHTML = "";
@@ -41,6 +45,14 @@ export function initYouTubePackView() {
       });
       lastPack = out;
       renderPack(out, results);
+      const target = deriveOutputPath(source.outputDir, "youtube-pack.json");
+      if (target) {
+        try {
+          await invoke("save_text_file", { path: target, content: JSON.stringify(out, null, 2) });
+          markOutputDone("youtube-pack");
+          showToast(`saved → ${target}`, "ok");
+        } catch (_) {}
+      }
       setStatus(status, `${out.titles.length} titles · ${out.tags.length} tags`, "ok");
     } catch (e) {
       console.error(e);

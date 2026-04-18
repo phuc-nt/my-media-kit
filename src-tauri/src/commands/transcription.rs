@@ -210,6 +210,40 @@ pub async fn get_cached_transcript(
         .map(|arc| TranscribeOutput::from_entry(arc, true)))
 }
 
+/// Returns platform info so the frontend can hide unavailable backends.
+#[derive(Debug, serde::Serialize)]
+pub struct PlatformInfo {
+    pub is_apple_silicon: bool,
+}
+
+#[command]
+pub async fn check_platform() -> PlatformInfo {
+    PlatformInfo {
+        is_apple_silicon: cfg!(all(target_os = "macos", target_arch = "aarch64")),
+    }
+}
+
+/// Check whether the default MLX Whisper model is already downloaded
+/// in the Hugging Face hub cache. Returns false on non-Apple-Silicon.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[command]
+pub async fn mlx_model_ready() -> Result<bool, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let snapshots = std::path::Path::new(&home)
+        .join(".cache/huggingface/hub/models--mlx-community--whisper-large-v3-turbo/snapshots");
+    let ready = snapshots.exists()
+        && std::fs::read_dir(&snapshots)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
+    Ok(ready)
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+#[command]
+pub async fn mlx_model_ready() -> Result<bool, String> {
+    Ok(false)
+}
+
 /// Drop cached PCM + transcript for a path (or everything when `path` is
 /// `None`). The frontend calls this when the user picks a new source or
 /// explicitly wants to rerun from scratch.

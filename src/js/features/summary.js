@@ -1,13 +1,16 @@
 // Summary view. Single-call summary with brief / key points / action items
 // styles. Reads the cached transcript from source-store.
 
-import { getSource, getAiConfig, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
 import {
+  deriveOutputPath,
+  ensureAiReady,
   escapeHtml,
   renderErrorBox,
   requireSource,
   requireTranscript,
   setStatus,
+  showToast,
 } from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -22,8 +25,9 @@ export function initSummaryView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language } = getAiConfig();
-    const style = document.getElementById("summary-style").value;
+    const { provider, model, language, mode } = getAiConfig();
+    if (!await ensureAiReady(mode, status)) return;
+    const style = "brief";
 
     setStatus(status, "running summary…");
     results.innerHTML = "";
@@ -39,6 +43,15 @@ export function initSummaryView() {
         },
       });
       renderSummary(out, results);
+      // Auto-save to output folder.
+      const target = deriveOutputPath(source.outputDir, "summary.md");
+      if (target) {
+        try {
+          await invoke("save_text_file", { path: target, content: out.text ?? "" });
+          markOutputDone("summary");
+          showToast(`saved → ${target}`, "ok");
+        } catch (_) {}
+      }
       setStatus(status, "done", "ok");
     } catch (e) {
       console.error(e);

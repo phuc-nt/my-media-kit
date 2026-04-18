@@ -81,6 +81,8 @@ ai-kit = { path = "crates/ai-kit" }
 media-kit = { path = "crates/media-kit" }
 transcription-kit = { path = "crates/transcription-kit" }
 content-kit = { path = "crates/content-kit" }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 
 [profile.release]
 lto = true

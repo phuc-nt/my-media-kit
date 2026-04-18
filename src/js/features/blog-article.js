@@ -1,12 +1,15 @@
 // Blog Article — convert transcript into a structured article.
 
-import { getSource, getAiConfig, subscribe } from "../source-store.js";
+import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
 import {
+  deriveOutputPath,
+  ensureAiReady,
   escapeHtml,
   renderErrorBox,
   requireSource,
   requireTranscript,
   setStatus,
+  showToast,
 } from "../util.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -24,7 +27,8 @@ export function initBlogArticleView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language } = getAiConfig();
+    const { provider, model, language, mode } = getAiConfig();
+    if (!await ensureAiReady(mode, status)) return;
 
     setStatus(status, "generating article…");
     results.innerHTML = "";
@@ -41,6 +45,15 @@ export function initBlogArticleView() {
       });
       lastArticle = out;
       renderArticle(out, results);
+      const md = formatMarkdown(out);
+      const target = deriveOutputPath(source.outputDir, "blog.md");
+      if (target) {
+        try {
+          await invoke("save_text_file", { path: target, content: md });
+          markOutputDone("blog");
+          showToast(`saved → ${target}`, "ok");
+        } catch (_) {}
+      }
       setStatus(status, `${out.sections.length} sections`, "ok");
     } catch (e) {
       console.error(e);

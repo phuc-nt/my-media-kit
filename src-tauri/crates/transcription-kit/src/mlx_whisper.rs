@@ -100,6 +100,9 @@ impl MlxWhisperTranscriber {
 
         let stem = "transcript";
         let mut cmd = Command::new(&self.binary);
+        // Force Python to flush stdout/stderr immediately so progress lines
+        // arrive in real-time instead of being buffered until process exit.
+        cmd.env("PYTHONUNBUFFERED", "1");
         cmd.arg(audio_path)
             .args([
                 "--model",
@@ -112,10 +115,12 @@ impl MlxWhisperTranscriber {
                 tmp_dir.to_string_lossy().as_ref(),
                 "--output-name",
                 stem,
+                // Enable verbose output so mlx_whisper prints
+                // `[MM:SS.sss --> MM:SS.sss] text` lines per segment.
+                "--verbose",
+                "True",
                 // Disable context carry-over to avoid whisper's classic
-                // runaway-loop failure mode ("The Harvard men never ask that
-                // question" × 50). Slight accuracy hit on long-form narration
-                // but prevents cataclysmic loops on silence / music.
+                // runaway-loop failure mode.
                 "--condition-on-previous-text",
                 "False",
                 // Drop segments whose audio is mostly silence but whisper
@@ -147,10 +152,14 @@ impl MlxWhisperTranscriber {
             .take()
             .ok_or_else(|| "mlx_whisper stderr not piped".to_string())?;
 
+        // mlx_whisper outputs verbose segment lines (`[MM:SS --> MM:SS] text`)
+        // to stderr, not stdout. Parse both streams for progress so we catch it
+        // regardless of which stream the CLI uses.
+        let on_progress_for_stdout = on_progress.clone();
         let stdout_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = reader.next_line().await {
-                if let Some(cb) = &on_progress {
+                if let Some(cb) = &on_progress_for_stdout {
                     if let Some(end_ms) = parse_progress_line(&line) {
                         cb(end_ms);
                     }
@@ -161,6 +170,12 @@ impl MlxWhisperTranscriber {
             let mut reader = BufReader::new(stderr).lines();
             let mut collected = String::new();
             while let Ok(Some(line)) = reader.next_line().await {
+                // Parse progress from stderr too — mlx_whisper outputs here.
+                if let Some(cb) = &on_progress {
+                    if let Some(end_ms) = parse_progress_line(&line) {
+                        cb(end_ms);
+                    }
+                }
                 collected.push_str(&line);
                 collected.push('\n');
             }

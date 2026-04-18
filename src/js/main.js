@@ -2,8 +2,9 @@
 
 import { initSidebar } from "./sidebar.js";
 import { initHeader } from "./header.js";
-import { initSourcePanel } from "./source-panel.js";
-import { initAutoCutView } from "./features/autocut.js";
+import { initSourceManager } from "./source-manager.js";
+// AutoCut removed — pipeline still in development.
+// import { initAutoCutView } from "./features/autocut.js";
 import { initTranscribeView } from "./features/transcribe.js";
 import { initTranslateView } from "./features/translate.js";
 import { initSummaryView } from "./features/summary.js";
@@ -16,8 +17,7 @@ import { initSettingsView } from "./features/settings.js";
 window.addEventListener("DOMContentLoaded", () => {
   initSidebar();
   initHeader();
-  initSourcePanel();
-  initAutoCutView();
+  initSourceManager();
   initTranscribeView();
   initTranslateView();
   initSummaryView();
