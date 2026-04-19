@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Bundle ffmpeg + ffprobe (macOS aarch64)
+      - name: Bundle ffmpeg + ffprobe + yt-dlp (macOS aarch64)
         run: |
           mkdir -p src-tauri/binaries
           cd /tmp
@@ -57,6 +57,8 @@ jobs:
           unzip -o ffprobe.zip
           mv ffmpeg "$GITHUB_WORKSPACE/src-tauri/binaries/ffmpeg-aarch64-apple-darwin"
           mv ffprobe "$GITHUB_WORKSPACE/src-tauri/binaries/ffprobe-aarch64-apple-darwin"
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos \
+            -o "$GITHUB_WORKSPACE/src-tauri/binaries/yt-dlp-aarch64-apple-darwin"
           chmod +x "$GITHUB_WORKSPACE/src-tauri/binaries/"*
 
       - name: Build Tauri app (signed + notarized)
@@ -103,7 +105,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Bundle ffmpeg + ffprobe (Windows x86_64)
+      - name: Bundle ffmpeg + ffprobe + yt-dlp (Windows x86_64)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
@@ -116,6 +118,8 @@ jobs:
           $probe = Get-ChildItem -Path $tmp -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
           Copy-Item $bin.FullName "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
           Copy-Item $probe.FullName "src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe"
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
+            -OutFile "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe"
 
       - name: Build Tauri app
         env:

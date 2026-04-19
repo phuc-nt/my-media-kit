@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Isometric 3-face flat shading on dark badge.
+    Doc: top face (lightest) + front face (mid) + right side (darkest).
+    Play button: front disc + back disc crescent showing cylinder depth.
+    No gradients, no shadows, no opacity — pure flat polygon shading.
+
+    Iso offset: dx=+40, dy=-30 (up-right for top/side faces).
+    Palette:
+      Badge bg : #0F172A
+      Doc front: #E2E8F0  top: #F8FAFC  side: #64748B
+      Fold flap: #94A3B8  fold-side: #475569
+      Play front: #E84E1B  side: #921B0D  top-rim: #FF6B3B
+      Triangle : #FFFFFF
+  -->
+
+  <!-- ===== BADGE BACKGROUND ===== -->
+  <rect x="16" y="16" width="480" height="480" rx="88" fill="#0F172A"/>
+
+  <!-- ===== DOCUMENT ===== -->
+  <!-- iso offset: (+40, -30) -->
+
+  <!-- RIGHT SIDE FACE (darkest) — C→C'→D'→D -->
+  <!-- C=(300,140) C'=(340,110) D'=(340,370) D=(300,380) -->
+  <polygon points="300,140 340,110 340,370 300,380" fill="#475569"/>
+
+  <!-- TOP FACE (lightest) — fold-top→B→C→C'→B'→fold-top' -->
+  <!-- B=(200,140) B'=(240,110) C=(300,140) C'=(340,110) -->
+  <polygon points="200,140 300,140 340,110 240,110" fill="#F8FAFC"/>
+
+  <!-- TOP FACE over fold diagonal — A=(130,260) A'=(170,230) B'=(240,110) B=(200,140) -->
+  <polygon points="130,260 200,140 240,110 170,230" fill="#E2E8F0"/>
+
+  <!-- FRONT FACE (mid) — A→B→C→D→E -->
+  <!-- A=(130,260) B=(200,140) C=(300,140) D=(300,380) E=(130,380) -->
+  <polygon points="130,260 200,140 300,140 300,380 130,380" fill="#CBD5E1"/>
+
+  <!-- FOLD FLAP SIDE FACE — B=(200,140) fold-inner=(200,260) A=(130,260) A'=(170,230) B'=(240,110) -->
+  <!-- side extrusion of the fold edge (A→B) going back -->
+  <polygon points="130,260 170,230 240,110 200,140" fill="#64748B"/>
+
+  <!-- FOLD FLAP (the folded corner triangle on the front face) -->
+  <polygon points="130,260 200,260 200,140" fill="#94A3B8"/>
+
+  <!-- Fold crease inner edge line (thin darker line for definition) -->
+  <line x1="130" y1="260" x2="200" y2="140" stroke="#475569" stroke-width="2"/>
+
+  <!-- ===== RED-ORANGE PLAY BUTTON ===== -->
+  <!-- Back disc: center (395,345) r=100  — shows as top-right cylinder rim -->
+  <circle cx="395" cy="345" r="100" fill="#921B0D"/>
+
+  <!-- Front disc: center (358,372) r=100 -->
+  <circle cx="358" cy="372" r="100" fill="#E84E1B"/>
+
+  <!-- Top-lit rim sliver (lighter crescent, top-left of front disc) -->
+  <defs>
+    <clipPath id="fc">
+      <circle cx="358" cy="372" r="100"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#fc)">
+    <!-- Lighter top-left face of cylinder -->
+    <circle cx="344" cy="357" r="100" fill="#FF6B3B"/>
+    <!-- Re-fill most of front, leaving thin rim -->
+    <circle cx="352" cy="367" r="100" fill="#E84E1B"/>
+  </g>
+
+  <!-- Play triangle — bold, centered, sharp white -->
+  <polygon points="330,330 330,415 405,372" fill="#FFFFFF"/>
+</svg>

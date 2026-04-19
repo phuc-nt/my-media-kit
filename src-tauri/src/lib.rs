@@ -39,11 +39,15 @@ pub fn run() {
                     };
                     let ffmpeg = resolve("ffmpeg");
                     let ffprobe = resolve("ffprobe");
+                    let ytdlp = resolve("yt-dlp");
                     if ffmpeg.exists() {
                         std::env::set_var("FFMPEG", ffmpeg);
                     }
                     if ffprobe.exists() {
                         std::env::set_var("FFPROBE", ffprobe);
+                    }
+                    if ytdlp.exists() {
+                        std::env::set_var("YT_DLP_BIN", ytdlp);
                     }
                 }
             }

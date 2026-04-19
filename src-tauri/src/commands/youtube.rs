@@ -1,11 +1,13 @@
 //! YouTube download command via yt-dlp.
 //!
-//! Downloads a YouTube URL to the app cache directory, keyed by video ID,
-//! so re-opening the same video skips the download. Progress is emitted as
-//! `yt_dlp_progress` Tauri events so the frontend can show a bar.
+//! Downloads a YouTube URL to `~/Downloads/MyMediaKit/{title} [{id}].mp4` so
+//! the user can find files in a familiar place. The video ID is included in
+//! the filename so we can detect prior downloads (cache by ID).
 //!
-//! Cache location: `<app_cache_dir>/youtube/<video_id>.mp4`
-//! Dependency: `yt-dlp` must be on PATH.
+//! Binary resolution: `YT_DLP_BIN` env var (set at app startup to the
+//! bundled sidecar) → falls back to `yt-dlp` on PATH for local dev.
+//!
+//! Progress is emitted as `yt_dlp_progress` Tauri events.
 
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -14,17 +16,21 @@ use serde_json::json;
 use tauri::{command, AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const YT_DLP: &str = "yt-dlp";
+const SUBDIR: &str = "MyMediaKit";
 
-// ── Cache dir ────────────────────────────────────────────────────────────────
+fn ytdlp_binary() -> String {
+    std::env::var("YT_DLP_BIN").unwrap_or_else(|_| "yt-dlp".into())
+}
 
-fn youtube_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let base = app
+// ── Output dir: ~/Downloads/MyMediaKit (works on macOS, Windows, Linux) ─────
+
+fn output_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let downloads = app
         .path()
-        .app_cache_dir()
-        .map_err(|e| format!("cannot resolve app cache dir: {e}"))?;
-    let dir = base.join("youtube");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create cache dir: {e}"))?;
+        .download_dir()
+        .map_err(|e| format!("cannot resolve Downloads dir: {e}"))?;
+    let dir = downloads.join(SUBDIR);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {SUBDIR} dir: {e}"))?;
     Ok(dir)
 }
 
@@ -33,12 +39,10 @@ fn youtube_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// Extract the 11-character YouTube video ID from any supported URL format.
 /// Falls back to asking yt-dlp when the URL pattern is not recognised.
 async fn video_id(url: &str) -> Result<String, String> {
-    // Fast path: parse well-known URL patterns without spawning a process.
     if let Some(id) = extract_id_from_url(url) {
         return Ok(id);
     }
-    // Slow path: let yt-dlp resolve it (handles short-links, playlist URLs, …)
-    let out = tokio::process::Command::new(YT_DLP)
+    let out = tokio::process::Command::new(ytdlp_binary())
         .args(["--get-id", "--no-playlist", url])
         .output()
         .await
@@ -54,16 +58,13 @@ async fn video_id(url: &str) -> Result<String, String> {
     Ok(id)
 }
 
-/// Parse video ID from common YouTube URL formats without network access.
 fn extract_id_from_url(url: &str) -> Option<String> {
-    // youtu.be/{id}
     if let Some(rest) = url.strip_prefix("https://youtu.be/")
         .or_else(|| url.strip_prefix("http://youtu.be/"))
     {
         let id = rest.split(['?', '&', '#']).next()?.to_string();
         if id.len() == 11 { return Some(id); }
     }
-    // youtube.com/watch?v={id}
     if url.contains("youtube.com/watch") {
         for part in url.split('?').nth(1).unwrap_or("").split('&') {
             if let Some(v) = part.strip_prefix("v=") {
@@ -75,10 +76,24 @@ fn extract_id_from_url(url: &str) -> Option<String> {
     None
 }
 
+// ── Cache lookup: find existing `* [id].mp4` ────────────────────────────────
+
+fn find_cached(dir: &std::path::Path, id: &str) -> Option<PathBuf> {
+    let suffix = format!("[{id}].mp4");
+    std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.ends_with(&suffix))
+                .unwrap_or(false)
+        })
+}
+
 // ── Progress parsing ─────────────────────────────────────────────────────────
 
-/// Parse a yt-dlp `[download]` progress line and return percent (0–100).
-/// Example: `[download]  42.3% of   44.68MiB at    2.50MiB/s ETA 00:18`
 fn parse_percent(line: &str) -> Option<f32> {
     let trimmed = line.trim_start_matches("[download]").trim();
     let pct_str = trimmed.split('%').next()?.trim();
@@ -87,11 +102,6 @@ fn parse_percent(line: &str) -> Option<f32> {
 
 // ── Main command ─────────────────────────────────────────────────────────────
 
-/// Download a YouTube URL and return the local cached file path.
-///
-/// If the video was already downloaded (same video ID), returns the cached
-/// path immediately without re-downloading. Progress events are emitted on
-/// `yt_dlp_progress` with payload `{ percent, cached, label }`.
 #[command]
 pub async fn yt_dlp_download(url: String, app: AppHandle) -> Result<String, String> {
     let emit = |percent: f32, cached: bool, label: &str| {
@@ -104,41 +114,48 @@ pub async fn yt_dlp_download(url: String, app: AppHandle) -> Result<String, Stri
     emit(0.0, false, "resolving video ID…");
 
     let id = video_id(&url).await?;
-    let cache_dir = youtube_cache_dir(&app)?;
-    let dest = cache_dir.join(format!("{id}.mp4"));
+    let dir = output_dir(&app)?;
 
-    // Return cached file immediately.
-    if dest.exists() {
+    if let Some(existing) = find_cached(&dir, &id) {
         emit(100.0, true, "loaded from cache");
-        return Ok(dest.to_string_lossy().into_owned());
+        return Ok(existing.to_string_lossy().into_owned());
     }
 
     emit(0.0, false, "starting download…");
 
-    // yt-dlp: prefer a single-file mp4 to avoid post-merge ffmpeg step.
-    // `best[ext=mp4]` picks the best pre-muxed mp4 stream (audio+video in
-    // one file). Falls back to `best` if no mp4 is available.
-    let mut child = tokio::process::Command::new(YT_DLP)
+    // Output template: `{title} [{id}].{ext}` — `restrict-filenames` strips
+    // characters illegal on Windows/macOS so the file is portable.
+    let template = dir.join("%(title).200B [%(id)s].%(ext)s");
+
+    let mut child = tokio::process::Command::new(ytdlp_binary())
         .args([
             "-f", "best[ext=mp4]/best",
             "--no-playlist",
-            "--newline",        // one progress line per print
+            "--restrict-filenames",
+            "--newline",
             "--progress",
-            "-o", dest.to_str().unwrap(),
+            "--print", "after_move:filepath",
+            "-o", template.to_str().unwrap(),
             &url,
         ])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())   // suppress warnings (n-challenge noise)
+        .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("failed to start yt-dlp: {e}"))?;
 
-    // Stream stdout and emit progress events.
+    let mut written_path: Option<PathBuf> = None;
     if let Some(stdout) = child.stdout.take() {
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
             if let Some(pct) = parse_percent(&line) {
-                let label = format!("downloading… {pct:.1}%");
-                emit(pct, false, &label);
+                emit(pct, false, &format!("downloading… {pct:.1}%"));
+                continue;
+            }
+            // `--print after_move:filepath` outputs the absolute path of the
+            // final file (after any post-process moves) — capture it.
+            let trimmed = line.trim();
+            if !trimmed.is_empty() && std::path::Path::new(trimmed).is_absolute() {
+                written_path = Some(PathBuf::from(trimmed));
             }
         }
     }
@@ -149,10 +166,12 @@ pub async fn yt_dlp_download(url: String, app: AppHandle) -> Result<String, Stri
         .map_err(|e| format!("yt-dlp wait error: {e}"))?;
 
     if !status.success() {
-        // Clean up partial file if present.
-        let _ = std::fs::remove_file(&dest);
         return Err(format!("yt-dlp exited with status {status}"));
     }
+
+    let dest = written_path
+        .or_else(|| find_cached(&dir, &id))
+        .ok_or_else(|| "yt-dlp succeeded but output path not captured".to_string())?;
 
     if !dest.exists() {
         return Err(format!("yt-dlp succeeded but output not found at {}", dest.display()));
