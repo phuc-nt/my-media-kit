@@ -22,8 +22,6 @@ Ví dụ: bạn tìm thấy một talk hay trên YouTube nhưng chỉ có tiến
 3. Bấm **Translate** → app dịch sang tiếng Việt, xuất ra file `.srt`.
 4. Mở file video bằng **VLC / IINA / QuickTime / MPV / CapCut**, kéo-thả file `.srt` vào → có phụ đề tiếng Việt khớp giây ngay lập tức.
 
-Cũng dùng được cho phim mua trên iTunes / Netflix download offline / file lecture trường gửi…
-
 ### 🎬 Sản xuất nội dung video cho YouTube / TikTok / Reels
 
 Ví dụ: bạn vừa quay xong 1 video 30 phút, cần đẩy lên YouTube + cắt clip ngắn cho TikTok.
