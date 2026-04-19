@@ -227,10 +227,18 @@ export function initSourceManager() {
   const aiModeSel   = document.getElementById("ai-mode-global");
   const aiLangInput = document.getElementById("ai-language-global");
 
-  invoke("check_platform").then(({ is_apple_silicon }) => {
-    if (!is_apple_silicon) {
-      const mlxOpt = aiModeSel.querySelector('option[value="local"]');
-      if (mlxOpt) mlxOpt.disabled = true;
+  invoke("check_platform").then(({ isAppleSilicon, mlxRuntimeAvailable }) => {
+    const mlxOpt = aiModeSel.querySelector('option[value="local"]');
+    if (!mlxOpt) return;
+    if (!isAppleSilicon) {
+      mlxOpt.disabled = true;
+      mlxOpt.textContent = "MLX (Apple Silicon only)";
+    } else if (!mlxRuntimeAvailable) {
+      mlxOpt.disabled = true;
+      mlxOpt.textContent = "MLX (run `pip install mlx-whisper mlx-lm` first)";
+      mlxOpt.title = "Install Python packages: pip install mlx-whisper mlx-lm";
+    }
+    if (mlxOpt.disabled) {
       aiModeSel.value = "cloud";
       setAiConfig({ mode: "cloud" });
     }

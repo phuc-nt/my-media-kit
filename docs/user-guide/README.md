@@ -19,6 +19,21 @@ App mặc định chạy ở **Cloud mode** (OpenAI), nên trước khi dùng ph
 
 > Chỉ phải làm bước này 1 lần. Lần sau mở app dùng được luôn.
 
+### (Tùy chọn) Cài MLX local — chạy AI offline trên Apple Silicon
+
+Nếu muốn chạy AI hoàn toàn trên máy (không tốn API, không gửi data lên cloud), cần cài thêm 2 Python package:
+
+```bash
+pip install mlx-whisper mlx-lm
+```
+
+Sau khi cài, dropdown **MLX (local)** sẽ available. Mode này yêu cầu:
+- Mac Apple Silicon (M1/M2/M3/M4)
+- ≥ 16 GB RAM
+- ~9 GB dung lượng để model Qwen3-14B tự download lần đầu
+
+Nếu không cài MLX, dropdown sẽ hiện `MLX (run pip install ...) first` và app vẫn hoạt động bình thường ở Cloud mode.
+
 ---
 
 ## 1. Mở app & chọn video nguồn

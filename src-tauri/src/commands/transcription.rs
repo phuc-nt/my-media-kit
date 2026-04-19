@@ -212,15 +212,43 @@ pub async fn get_cached_transcript(
 
 /// Returns platform info so the frontend can hide unavailable backends.
 #[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlatformInfo {
     pub is_apple_silicon: bool,
+    /// True only when both `mlx_whisper` and `mlx_lm.server` are on PATH
+    /// (or the standard Homebrew/pip locations). Frontend uses this to
+    /// disable the MLX dropdown option on machines that don't have the
+    /// Python runtime installed.
+    pub mlx_runtime_available: bool,
 }
 
 #[command]
 pub async fn check_platform() -> PlatformInfo {
+    let is_silicon = cfg!(all(target_os = "macos", target_arch = "aarch64"));
     PlatformInfo {
-        is_apple_silicon: cfg!(all(target_os = "macos", target_arch = "aarch64")),
+        is_apple_silicon: is_silicon,
+        mlx_runtime_available: is_silicon && mlx_runtime_installed(),
     }
+}
+
+/// Look for `mlx_whisper` + `mlx_lm.server` in PATH and common pip dirs.
+/// Both are required for MLX mode to work (whisper for transcribe, lm.server
+/// for the LLM features). Returns true only when both exist.
+fn mlx_runtime_installed() -> bool {
+    fn find(name: &str) -> bool {
+        if std::process::Command::new("which")
+            .arg(name)
+            .output()
+            .map(|o| o.status.success() && !o.stdout.is_empty())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        ["/usr/local/bin", "/opt/homebrew/bin"]
+            .iter()
+            .any(|d| std::path::Path::new(d).join(name).exists())
+    }
+    find("mlx_whisper") && find("mlx_lm.server")
 }
 
 /// Check whether the default MLX Whisper model is already downloaded
