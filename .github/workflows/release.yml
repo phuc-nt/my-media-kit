@@ -47,6 +47,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Bundle ffmpeg + ffprobe (macOS aarch64)
+        run: |
+          mkdir -p src-tauri/binaries
+          cd /tmp
+          curl -L https://evermeet.cx/ffmpeg/getrelease/zip -o ffmpeg.zip
+          curl -L https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip -o ffprobe.zip
+          unzip -o ffmpeg.zip
+          unzip -o ffprobe.zip
+          mv ffmpeg "$GITHUB_WORKSPACE/src-tauri/binaries/ffmpeg-aarch64-apple-darwin"
+          mv ffprobe "$GITHUB_WORKSPACE/src-tauri/binaries/ffprobe-aarch64-apple-darwin"
+          chmod +x "$GITHUB_WORKSPACE/src-tauri/binaries/"*
+
       - name: Build Tauri app (signed + notarized)
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -67,64 +79,8 @@ jobs:
             src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
             src-tauri/target/release/bundle/dmg/*.dmg
 
-  build-macos-intel:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Apple Certificate
-        env:
-          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-        run: |
-          CERT_PATH=$RUNNER_TEMP/certificate.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo -n "$CERTIFICATE" | base64 --decode -o $CERT_PATH
-
-          security create-keychain -p "" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "" $KEYCHAIN_PATH
-          security import $CERT_PATH -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
-          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Tauri app (Intel, signed + notarized)
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-        run: npm run build -- --target x86_64-apple-darwin
-
-      - name: Upload macOS Intel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-intel-build
-          path: |
-            src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
-            src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+  # NOTE: Intel macOS build dropped in v0.1.3 — no reliable static ffmpeg
+  # x86_64 build for macOS in CI yet. Re-enable once a source is wired up.
 
   build-windows:
     runs-on: windows-latest
@@ -147,6 +103,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Bundle ffmpeg + ffprobe (Windows x86_64)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
+          $tmp = Join-Path $env:TEMP "ffmpeg-win"
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          $zip = Join-Path $env:TEMP "ffmpeg-win.zip"
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile $zip
+          Expand-Archive -Force -Path $zip -DestinationPath $tmp
+          $bin = Get-ChildItem -Path $tmp -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          $probe = Get-ChildItem -Path $tmp -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
+          Copy-Item $bin.FullName "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
+          Copy-Item $probe.FullName "src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe"
+
       - name: Build Tauri app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -164,7 +134,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi.sig
 
   release:
-    needs: [build-macos, build-macos-intel, build-windows]
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -178,12 +148,6 @@ jobs:
         with:
           name: macos-build
           path: artifacts/macos
-
-      - name: Download macOS Intel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-intel-build
-          path: artifacts/macos-intel
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
@@ -202,12 +166,6 @@ jobs:
           for f in artifacts/macos/macos/*.app.tar.gz.sig; do
             [ -f "$f" ] && mv "$f" "${f%.app.tar.gz.sig}_aarch64.app.tar.gz.sig"
           done
-          for f in artifacts/macos-intel/macos/*.app.tar.gz; do
-            [ -f "$f" ] && mv "$f" "${f%.app.tar.gz}_x64.app.tar.gz"
-          done
-          for f in artifacts/macos-intel/macos/*.app.tar.gz.sig; do
-            [ -f "$f" ] && mv "$f" "${f%.app.tar.gz.sig}_x64.app.tar.gz.sig"
-          done
           echo "Renamed artifacts:"
           find artifacts -name "*.tar.gz*" -type f
 
@@ -217,13 +175,11 @@ jobs:
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           DARWIN_AARCH64_SIG=$(cat artifacts/macos/macos/*_aarch64.app.tar.gz.sig 2>/dev/null || echo "")
-          DARWIN_X86_64_SIG=$(cat artifacts/macos-intel/macos/*_x64.app.tar.gz.sig 2>/dev/null || echo "")
           WINDOWS_X86_64_SIG=$(cat artifacts/windows/nsis/*.exe.sig 2>/dev/null || echo "")
 
           REPO="https://github.com/phuc-nt/my-media-kit/releases/download/v${VERSION}"
 
           DARWIN_AARCH64_FILE=$(ls artifacts/macos/macos/*_aarch64.app.tar.gz 2>/dev/null | head -1 | xargs basename || echo "")
-          DARWIN_X86_64_FILE=$(ls artifacts/macos-intel/macos/*_x64.app.tar.gz 2>/dev/null | head -1 | xargs basename || echo "")
           WINDOWS_X86_64_FILE=$(ls artifacts/windows/nsis/*.exe 2>/dev/null | head -1 | xargs basename || echo "")
 
           cat > artifacts/latest.json << EOF
@@ -235,10 +191,6 @@ jobs:
               "darwin-aarch64": {
                 "signature": "${DARWIN_AARCH64_SIG}",
                 "url": "${REPO}/${DARWIN_AARCH64_FILE}"
-              },
-              "darwin-x86_64": {
-                "signature": "${DARWIN_X86_64_SIG}",
-                "url": "${REPO}/${DARWIN_X86_64_FILE}"
               },
               "windows-x86_64": {
                 "signature": "${WINDOWS_X86_64_SIG}",

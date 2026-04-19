@@ -26,6 +26,27 @@ pub fn run() {
                 .with_max_level(tracing::Level::INFO)
                 .try_init()
                 .ok();
+            // Point media-kit at the bundled ffmpeg/ffprobe sidecars so the
+            // user does not need a system install. Tauri places `externalBin`
+            // entries next to the main executable (Contents/MacOS/ on macOS,
+            // same dir as the .exe on Windows). If the bundled file is missing
+            // (e.g. local `cargo run`), we fall back to PATH lookup.
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let resolve = |name: &str| {
+                        let suffix = if cfg!(windows) { ".exe" } else { "" };
+                        dir.join(format!("{name}{suffix}"))
+                    };
+                    let ffmpeg = resolve("ffmpeg");
+                    let ffprobe = resolve("ffprobe");
+                    if ffmpeg.exists() {
+                        std::env::set_var("FFMPEG", ffmpeg);
+                    }
+                    if ffprobe.exists() {
+                        std::env::set_var("FFPROBE", ffprobe);
+                    }
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
