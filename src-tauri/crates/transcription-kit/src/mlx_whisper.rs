@@ -103,6 +103,13 @@ impl MlxWhisperTranscriber {
         // Force Python to flush stdout/stderr immediately so progress lines
         // arrive in real-time instead of being buffered until process exit.
         cmd.env("PYTHONUNBUFFERED", "1");
+        // mlx_whisper internally calls `subprocess.run('ffmpeg', ...)` to
+        // decode audio. macOS GUI apps inherit a minimal PATH that doesn't
+        // include `/opt/homebrew/bin` or our bundled binaries dir, so the
+        // child can't find ffmpeg → cryptic "FileNotFoundError: ffmpeg".
+        // Prepend the bundled ffmpeg dir + the standard Homebrew dirs so
+        // the child process inherits a usable PATH.
+        cmd.env("PATH", augmented_path());
         cmd.arg(audio_path)
             .args([
                 "--model",
@@ -448,6 +455,37 @@ impl MlxWhisperOutput {
 
 fn seconds_to_ms(seconds: f64) -> i64 {
     (seconds * 1000.0).round() as i64
+}
+
+/// Build a PATH value that includes the bundled ffmpeg location plus the
+/// standard Homebrew / pipx dirs. mlx_whisper spawns `ffmpeg` directly via
+/// Python's subprocess and would otherwise inherit the GUI app's stripped
+/// PATH (no `/opt/homebrew/bin`, no `~/.local/bin`).
+fn augmented_path() -> String {
+    let mut entries: Vec<String> = Vec::new();
+
+    // Bundled ffmpeg is exposed via FFMPEG env var by the app's setup hook.
+    if let Ok(ff) = std::env::var("FFMPEG") {
+        if let Some(dir) = std::path::Path::new(&ff).parent() {
+            entries.push(dir.to_string_lossy().into_owned());
+        }
+    }
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    for dir in [
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        &format!("{home}/.local/bin"),
+    ] {
+        entries.push(dir.to_string());
+    }
+
+    if let Ok(existing) = std::env::var("PATH") {
+        entries.push(existing);
+    }
+    entries.join(":")
 }
 
 /// Small `which` helper duplicated from media-kit::ffmpeg to avoid a hard
