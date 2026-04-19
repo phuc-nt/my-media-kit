@@ -137,9 +137,10 @@ pub fn kill_server_pid(state: &AppState) {
     }
 }
 
-/// Search common locations for the `mlx_lm.server` binary.
+/// Search common locations for the `mlx_lm.server` binary. macOS GUI apps
+/// have a minimal PATH so we also probe pipx (`~/.local/bin`) and Homebrew
+/// dirs explicitly.
 fn which_mlx_lm_server() -> Option<String> {
-    // Try PATH first via `which`.
     if let Ok(out) = std::process::Command::new("which")
         .arg("mlx_lm.server")
         .output()
@@ -151,15 +152,11 @@ fn which_mlx_lm_server() -> Option<String> {
             }
         }
     }
-    // Common pip install locations on macOS.
+    let home = std::env::var("HOME").unwrap_or_default();
     let candidates = [
-        "/usr/local/bin/mlx_lm.server",
-        "/opt/homebrew/bin/mlx_lm.server",
+        format!("{home}/.local/bin/mlx_lm.server"),
+        "/opt/homebrew/bin/mlx_lm.server".into(),
+        "/usr/local/bin/mlx_lm.server".into(),
     ];
-    for c in &candidates {
-        if std::path::Path::new(c).exists() {
-            return Some(c.to_string());
-        }
-    }
-    None
+    candidates.into_iter().find(|c| std::path::Path::new(c).exists())
 }

@@ -418,23 +418,32 @@ fn seconds_to_ms(seconds: f64) -> i64 {
 }
 
 /// Small `which` helper duplicated from media-kit::ffmpeg to avoid a hard
-/// dep. Walk PATH, return first executable match.
+/// dep. Walks PATH then falls back to common pip / pipx install dirs that
+/// macOS GUI apps don't see (Finder-launched apps have a minimal PATH that
+/// excludes `~/.local/bin` and `/opt/homebrew/bin`).
 fn which_binary(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
-        let candidate = dir.join(name);
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-        #[cfg(windows)]
-        {
-            let exe = dir.join(format!("{name}.exe"));
-            if exe.is_file() {
-                return Some(exe);
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            #[cfg(windows)]
+            {
+                let exe = dir.join(format!("{name}.exe"));
+                if exe.is_file() {
+                    return Some(exe);
+                }
             }
         }
     }
-    None
+    let home = std::env::var("HOME").ok()?;
+    let extras = [
+        format!("{home}/.local/bin/{name}"),
+        format!("/opt/homebrew/bin/{name}"),
+        format!("/usr/local/bin/{name}"),
+    ];
+    extras.into_iter().map(PathBuf::from).find(|p| p.is_file())
 }
 
 #[cfg(test)]

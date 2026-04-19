@@ -139,7 +139,7 @@ pub async fn yt_dlp_download(url: String, app: AppHandle) -> Result<String, Stri
             &url,
         ])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("failed to start yt-dlp: {e}"))?;
 
@@ -160,13 +160,30 @@ pub async fn yt_dlp_download(url: String, app: AppHandle) -> Result<String, Stri
         }
     }
 
+    // Drain stderr so we can surface a real error message instead of just
+    // "exit status: 255". yt-dlp prints permission errors, bot-detection
+    // hints, format errors, etc. to stderr — none of which are useful if
+    // we discard them.
+    let mut stderr_buf = String::new();
+    if let Some(stderr) = child.stderr.take() {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            stderr_buf.push_str(&line);
+            stderr_buf.push('\n');
+        }
+    }
+
     let status = child
         .wait()
         .await
         .map_err(|e| format!("yt-dlp wait error: {e}"))?;
 
     if !status.success() {
-        return Err(format!("yt-dlp exited with status {status}"));
+        let detail = stderr_buf.trim();
+        if detail.is_empty() {
+            return Err(format!("yt-dlp exited with status {status}"));
+        }
+        return Err(format!("yt-dlp failed ({status}): {detail}"));
     }
 
     let dest = written_path

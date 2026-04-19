@@ -231,9 +231,11 @@ pub async fn check_platform() -> PlatformInfo {
     }
 }
 
-/// Look for `mlx_whisper` + `mlx_lm.server` in PATH and common pip dirs.
-/// Both are required for MLX mode to work (whisper for transcribe, lm.server
-/// for the LLM features). Returns true only when both exist.
+/// Look for `mlx_whisper` + `mlx_lm.server` in PATH plus the common pipx /
+/// Homebrew install dirs that macOS GUI apps cannot see (Finder-launched
+/// apps inherit a minimal PATH that excludes `~/.local/bin` etc.).
+/// Both binaries are required for MLX mode (whisper for transcribe, lm.server
+/// for LLM features). Returns true only when both exist.
 fn mlx_runtime_installed() -> bool {
     fn find(name: &str) -> bool {
         if std::process::Command::new("which")
@@ -244,9 +246,13 @@ fn mlx_runtime_installed() -> bool {
         {
             return true;
         }
-        ["/usr/local/bin", "/opt/homebrew/bin"]
-            .iter()
-            .any(|d| std::path::Path::new(d).join(name).exists())
+        let home = std::env::var("HOME").unwrap_or_default();
+        let candidates = [
+            format!("{home}/.local/bin/{name}"),
+            format!("/opt/homebrew/bin/{name}"),
+            format!("/usr/local/bin/{name}"),
+        ];
+        candidates.iter().any(|c| std::path::Path::new(c).exists())
     }
     find("mlx_whisper") && find("mlx_lm.server")
 }
