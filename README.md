@@ -23,6 +23,7 @@ Drop a video file (or paste a YouTube URL) and get:
 
 | Feature | Description |
 |---------|-------------|
+| **YouTube Downloader** | Paste any YouTube URL — app fetches the video to `~/Downloads/MyMediaKit/{title} [{id}].mp4` and feeds it straight into the pipeline. `yt-dlp` ships inside the app, no install needed. |
 | **Transcribe** | Speech-to-text with word-level timestamps (MLX Whisper local or OpenAI cloud) |
 | **Translate** | Translate transcript to any language, auto-skips if source matches target |
 | **Summary** | Brief narrative, key points, or action items |

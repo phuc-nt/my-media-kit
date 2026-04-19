@@ -48,9 +48,21 @@ Khi mở app:
 **Cách nạp video:**
 - Bấm **Browse** để chọn file
 - Kéo-thả file video vào cửa sổ app
-- Paste **YouTube URL** → app sẽ tự download bằng `yt-dlp`
+- Paste **YouTube URL** → app tự download (xem section dưới)
 
 Sau khi chọn, app tạo thư mục output `{tên_video}_output/` cạnh file gốc để lưu mọi kết quả.
+
+### ✨ YouTube Downloader tích hợp — điểm sáng
+
+Không cần dùng tool ngoài, không cần cài thêm gì. Paste link YouTube vào ô input là xong:
+
+- **`yt-dlp` đóng gói sẵn** trong app — không phải cài Python, không phải `brew install yt-dlp`
+- **Tự đặt tên theo title video**: `~/Downloads/MyMediaKit/12 Angry Men - Not Guilty [0jxVnlRdelU].mp4` — dễ tìm lại sau này
+- **Cache thông minh**: paste lại cùng link → bỏ qua download, dùng file đã có
+- **Format ổn định**: chọn 360p mp4 muxed sẵn → bỏ qua DASH HD streams thường bị YouTube anti-bot chặn. Đủ chất lượng audio cho transcribe/translate
+- **Pipeline liền mạch**: download xong → transcribe → summary → translate → các tính năng khác, tất cả chỉ với 1 link YouTube ban đầu
+
+Đây là khác biệt lớn nhất so với các tool transcription khác — bạn không phải tự download video về trước rồi mới chuyển sang tool khác.
 
 > **Chuyển sang MLX (local):** Bấm dropdown → chọn `MLX (local)`. App sẽ hiện popup xác nhận trước khi load model 9 GB Qwen3-14B. Chỉ dùng khi máy Apple Silicon còn nhiều RAM trống.
 
