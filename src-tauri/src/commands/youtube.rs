@@ -127,9 +127,19 @@ pub async fn yt_dlp_download(url: String, app: AppHandle) -> Result<String, Stri
     // characters illegal on Windows/macOS so the file is portable.
     let template = dir.join("%(title).200B [%(id)s].%(ext)s");
 
+    // Format selector — biased toward formats that work WITHOUT YouTube's
+    // "n challenge" JS solver:
+    //   1. `best[ext=mp4][acodec!=none][vcodec!=none]` — best single-file
+    //      mp4 with both audio AND video already muxed (skips DASH streams
+    //      that trigger n challenge for HD).
+    //   2. `18` — legacy 360p mp4 muxed format. Stable for years; never
+    //      requires n challenge solving. Reliable lower-quality fallback.
+    //   3. `best` — last-resort, lets yt-dlp pick anything.
+    // For our use case (transcription / translation / metadata), 360p audio
+    // quality is more than enough; we trade resolution for reliability.
     let mut child = tokio::process::Command::new(ytdlp_binary())
         .args([
-            "-f", "best[ext=mp4]/best",
+            "-f", "best[ext=mp4][acodec!=none][vcodec!=none]/18/best",
             "--no-playlist",
             "--restrict-filenames",
             "--newline",
