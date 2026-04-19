@@ -12,9 +12,12 @@ use std::time::Duration;
 use serde_json::json;
 use tauri::{command, AppHandle, Emitter, State};
 
-use ai_kit::providers::mlx_lm::DEFAULT_MODEL;
-
 use crate::state::AppState;
+
+/// Default Qwen model loaded by mlx_lm.server. Hardcoded here (instead of
+/// re-exported from ai-kit) so this module compiles on non-Apple-Silicon
+/// platforms — the server is a no-op there but the command surface stays.
+const DEFAULT_MODEL: &str = "mlx-community/Qwen3-14B-4bit";
 
 pub const MLX_SERVER_EVENT: &str = "mlx_server_status";
 const MLX_SERVER_ADDR: &str = "127.0.0.1:8080";
