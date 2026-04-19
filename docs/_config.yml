@@ -1,7 +1,7 @@
 title: My Media Kit
 description: Bộ công cụ AI cho creator — transcript, dịch, summary, chapters, YouTube pack, viral clips từ 1 video.
 theme: jekyll-theme-cayman
-show_downloads: true
+show_downloads: false
 
 # Only render the user-facing guide. Internal dev docs in docs/ remain raw
 # files in the repo but aren't surfaced as Pages.
