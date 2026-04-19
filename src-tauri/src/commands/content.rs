@@ -1,23 +1,15 @@
-//! Content-feature commands: filler detection, summary, chapters. All
-//! route through the configured provider. On Apple Silicon the default is
-//! MLX (local); other platforms fall back to whatever has a keyring entry.
-//!
-//! Phase-8 wiring: these commands take raw transcript segments from the
-//! frontend. A later phase will source them from a stored transcription
-//! result once we have app state plumbed.
+//! Content-feature commands: summary, chapters, translate, YT pack, viral
+//! clips. All route through the configured provider. On Apple Silicon the
+//! default is MLX (local); other platforms fall back to OpenAI.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use tauri::{command, AppHandle, Emitter};
 
-use ai_kit::{Provider, ProviderRegistry, SecretStore, KeyringSecretStore};
+use ai_kit::{Provider, SecretStore, KeyringSecretStore};
 use content_kit::{
-    batch::{chunk_segments, TranscriptBatch},
-    blog_article::{BlogArticle, BlogArticleRunner, ProviderBlogArticleRunner},
+    batch::chunk_segments,
     chapters::{ChapterList, ChapterRunner, ProviderChapterRunner},
-    duplicate::{AiDuplicateDetector, DuplicateDetector, DUPLICATE_BATCH_SECONDS},
-    filler::{AiFillerDetector, FillerDetector, FILLER_BATCH_SECONDS},
-    prompt_cut::{AiPromptCutter, ProviderCutter},
     summary::{ProviderSummaryRunner, SummaryResult, SummaryRunner, SummaryStyle},
     transcript_filler_scan,
     translate::{
@@ -27,7 +19,7 @@ use content_kit::{
     viral_clips::{ProviderViralClipRunner, ViralClipList, ViralClipRunner},
     youtube_pack::{ProviderYouTubePackRunner, YouTubePack, YouTubePackRunner},
 };
-use creator_core::{AiProviderType, AiPromptDetection, DuplicateDetection, FillerDetection, TranscriptionSegment};
+use creator_core::{AiProviderType, TranscriptionSegment};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,81 +27,16 @@ pub struct ContentRequest {
     pub provider: AiProviderType,
     pub model: String,
     pub segments: Vec<TranscriptionSegment>,
-    /// Only used for summary/chapters; filler uses its own bilingual prompt.
     #[serde(default)]
     pub language: Option<String>,
     #[serde(default)]
     pub style: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct FillerOutput {
-    pub detections: Vec<FillerDetection>,
-}
-
-#[command]
-pub async fn content_filler_detect(request: ContentRequest) -> Result<FillerOutput, String> {
-    let provider = resolve_provider(request.provider).await?;
-    let detector = AiFillerDetector {
-        provider: provider.as_ref(),
-    };
-    // Use chunked detection to avoid huge prompts on long transcripts.
-    let detections = detector
-        .detect_transcript(&request.segments, &request.model, FILLER_BATCH_SECONDS)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(FillerOutput { detections })
-}
-
-#[derive(Debug, Serialize)]
-pub struct DuplicateOutput {
-    pub detections: Vec<DuplicateDetection>,
-}
-
-#[command]
-pub async fn content_duplicate_detect(request: ContentRequest) -> Result<DuplicateOutput, String> {
-    let provider = resolve_provider(request.provider).await?;
-    let detector = AiDuplicateDetector {
-        provider: provider.as_ref(),
-    };
-    // Chunked: re-take detection only applies within a local window anyway.
-    let detections = detector
-        .detect_transcript(&request.segments, &request.model, DUPLICATE_BATCH_SECONDS)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(DuplicateOutput { detections })
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PromptCutRequest {
-    pub provider: AiProviderType,
-    pub model: String,
-    pub segments: Vec<TranscriptionSegment>,
-    pub instruction: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PromptCutOutput {
-    pub detections: Vec<AiPromptDetection>,
-}
-
-#[command]
-pub async fn content_prompt_cut(request: PromptCutRequest) -> Result<PromptCutOutput, String> {
-    let provider = resolve_provider(request.provider).await?;
-    let batch = TranscriptBatch {
-        batch_index: 0,
-        first_segment_index: 0,
-        segments: request.segments,
-    };
-    let cutter = ProviderCutter {
-        provider: provider.as_ref(),
-    };
-    let detections = cutter
-        .detect(&batch, &request.instruction, &request.model)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(PromptCutOutput { detections })
+    /// Free-form instruction override for summary — replaces the default style instruction.
+    #[serde(default)]
+    pub custom_instruction: Option<String>,
+    /// Optional summary injected into system prompt for context (used by chapters/yt-pack/viral).
+    #[serde(default)]
+    pub summary_hint: Option<String>,
 }
 
 #[command]
@@ -120,8 +47,17 @@ pub async fn content_summary(request: ContentRequest) -> Result<SummaryResult, S
     let runner = ProviderSummaryRunner {
         provider: provider.as_ref(),
     };
+    // Single-pass for transcripts under 30 minutes — avoids slow multi-batch
+    // + consolidation (was 60s batching → 5+ LLM calls for a 5-min video).
     runner
-        .run(&request.segments, style, &language, &request.model, 60.0)
+        .run(
+            &request.segments,
+            style,
+            &language,
+            &request.model,
+            1800.0,
+            request.custom_instruction.as_deref(),
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -134,7 +70,7 @@ pub async fn content_chapters(request: ContentRequest) -> Result<ChapterList, St
         provider: provider.as_ref(),
     };
     runner
-        .run(&request.segments, &language, &request.model)
+        .run(&request.segments, &language, &request.model, request.summary_hint.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
@@ -244,7 +180,7 @@ pub async fn content_youtube_pack(request: ContentRequest) -> Result<YouTubePack
         provider: provider.as_ref(),
     };
     runner
-        .run(&request.segments, &language, &request.model)
+        .run(&request.segments, &language, &request.model, request.summary_hint.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
@@ -257,20 +193,7 @@ pub async fn content_viral_clips(request: ContentRequest) -> Result<ViralClipLis
         provider: provider.as_ref(),
     };
     runner
-        .run(&request.segments, &language, &request.model)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[command]
-pub async fn content_blog_article(request: ContentRequest) -> Result<BlogArticle, String> {
-    let provider = resolve_provider(request.provider).await?;
-    let language = request.language.unwrap_or_else(|| "English".into());
-    let runner = ProviderBlogArticleRunner {
-        provider: provider.as_ref(),
-    };
-    runner
-        .run(&request.segments, &language, &request.model, 60.0)
+        .run(&request.segments, &language, &request.model, request.summary_hint.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
@@ -321,56 +244,54 @@ fn parse_summary_style(raw: Option<&str>) -> SummaryStyle {
     }
 }
 
-async fn resolve_provider(
-    kind: AiProviderType,
-) -> Result<Arc<dyn Provider>, String> {
-    let registry = build_registry();
-    registry
-        .get(kind)
-        .ok_or_else(|| format!("provider {kind:?} not registered"))
-}
-
-/// Build a `ProviderRegistry` with MLX (on Apple Silicon) + any cloud
-/// providers that have a keyring entry. Shared with the settings command
-/// layer.
-fn build_registry() -> ProviderRegistry {
+/// Resolve only the requested provider — avoids querying the keychain for
+/// every cloud provider when only one (e.g. MLX) is actually needed.
+async fn resolve_provider(kind: AiProviderType) -> Result<Arc<dyn Provider>, String> {
     let store = KeyringSecretStore::new();
-    let mut registry = ProviderRegistry::new();
-
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        use ai_kit::MlxLmProvider;
-        let p: Arc<dyn Provider> = Arc::new(MlxLmProvider::default_local());
-        registry.register(p);
+    match kind {
+        AiProviderType::Mlx => {
+            #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+            {
+                use ai_kit::MlxLmProvider;
+                return Ok(Arc::new(MlxLmProvider::default_local()));
+            }
+            #[allow(unreachable_code)]
+            Err("MLX provider is only available on Apple Silicon".into())
+        }
+        AiProviderType::OpenAi => {
+            let key = store.get(AiProviderType::OpenAi).unwrap_or(None)
+                .ok_or("OpenAI API key not set — add it in Settings")?;
+            use ai_kit::OpenAiProvider;
+            Ok(Arc::new(OpenAiProvider::new(key)))
+        }
+        AiProviderType::Claude => {
+            let key = store.get(AiProviderType::Claude).unwrap_or(None)
+                .ok_or("Claude API key not set — add it in Settings")?;
+            use ai_kit::ClaudeProvider;
+            Ok(Arc::new(ClaudeProvider::new(key)))
+        }
+        AiProviderType::Gemini => {
+            let key = store.get(AiProviderType::Gemini).unwrap_or(None)
+                .ok_or("Gemini API key not set — add it in Settings")?;
+            use ai_kit::GeminiProvider;
+            Ok(Arc::new(GeminiProvider::new(key)))
+        }
+        AiProviderType::OpenRouter => {
+            let key = store.get(AiProviderType::OpenRouter).unwrap_or(None)
+                .ok_or("OpenRouter API key not set — add it in Settings")?;
+            use ai_kit::OpenRouterProvider;
+            Ok(Arc::new(OpenRouterProvider::new(key)))
+        }
+        AiProviderType::Ollama => {
+            use ai_kit::OllamaProvider;
+            use ai_kit::providers::ollama::DEFAULT_HOST;
+            let host = store.get(AiProviderType::Ollama).unwrap_or(None)
+                .unwrap_or_else(|| DEFAULT_HOST.to_string());
+            Ok(Arc::new(OllamaProvider::new(host)))
+        }
+        AiProviderType::AppleIntelligence => {
+            Err("Apple Intelligence provider not yet implemented".into())
+        }
     }
-
-    if let Some(key) = store.get(AiProviderType::Claude).unwrap_or(None) {
-        use ai_kit::ClaudeProvider;
-        let p: Arc<dyn Provider> = Arc::new(ClaudeProvider::new(key));
-        registry.register(p);
-    }
-    if let Some(key) = store.get(AiProviderType::OpenAi).unwrap_or(None) {
-        use ai_kit::OpenAiProvider;
-        let p: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(key));
-        registry.register(p);
-    }
-    if let Some(key) = store.get(AiProviderType::Gemini).unwrap_or(None) {
-        use ai_kit::GeminiProvider;
-        let p: Arc<dyn Provider> = Arc::new(GeminiProvider::new(key));
-        registry.register(p);
-    }
-    if let Some(key) = store.get(AiProviderType::OpenRouter).unwrap_or(None) {
-        use ai_kit::OpenRouterProvider;
-        let p: Arc<dyn Provider> = Arc::new(OpenRouterProvider::new(key));
-        registry.register(p);
-    }
-    use ai_kit::OllamaProvider;
-    let host = store
-        .get(AiProviderType::Ollama)
-        .unwrap_or(None)
-        .unwrap_or_else(|| ai_kit::providers::ollama::DEFAULT_HOST.to_string());
-    let p: Arc<dyn Provider> = Arc::new(OllamaProvider::new(host));
-    registry.register(p);
-
-    registry
 }
+

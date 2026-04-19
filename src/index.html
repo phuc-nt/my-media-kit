@@ -19,9 +19,10 @@
         <div class="sm-config">
           <select id="ai-mode-global" title="AI engine">
             <option value="local">MLX (local)</option>
-            <option value="cloud">Cloud (OpenAI)</option>
+            <option value="cloud" selected>Cloud (OpenAI)</option>
           </select>
           <input id="ai-language-global" type="text" value="Vietnamese" placeholder="Language" title="Output language" />
+          <span id="ai-engine-status" class="ai-status running">checking…</span>
           <button id="btn-source-clear" class="ghost small">Clear</button>
         </div>
       </div>
@@ -51,7 +52,6 @@
         <button class="feature-item" data-feature="chapters" role="tab">Chapters</button>
         <button class="feature-item" data-feature="youtube-pack" role="tab">YT Pack</button>
         <button class="feature-item" data-feature="viral-clips" role="tab">Viral Clips</button>
-        <button class="feature-item" data-feature="blog-article" role="tab">Blog</button>
         <button class="feature-item" data-feature="settings" role="tab">Settings</button>
       </nav>
 
@@ -73,7 +73,15 @@
             </div>
             <div class="progress-track"><div id="transcribe-progress-bar" class="progress-bar"></div></div>
           </div>
-          <div id="transcribe-results" class="results"></div>
+          <div class="transcribe-split">
+            <div class="transcribe-col-main">
+              <div id="transcribe-results" class="results"></div>
+            </div>
+            <aside id="transcribe-summary" class="transcribe-col-side" hidden>
+              <h3>Summary</h3>
+              <div id="transcribe-summary-body"></div>
+            </aside>
+          </div>
         </section>
 
         <!-- ───────── Translate view ───────── -->
@@ -90,10 +98,11 @@
         <!-- ───────── Summary view ───────── -->
         <section class="feature-view" data-view="summary">
           <h2>Summary</h2>
-          <p class="hint">Brief narrative summary of the transcript content.</p>
+          <p class="hint">Re-summarize with a different style or custom instructions. The default summary is generated automatically during Transcribe.</p>
           <div class="actions">
-            <button id="btn-summary" class="primary">Run summary</button>
-            <span id="summary-status" class="status">ready</span>
+            <textarea id="summary-custom-prompt" rows="2" placeholder="Custom instructions (e.g. 'focus on action items', 'extract key quotes', '5 bullet points')…" style="width:100%;resize:vertical;margin-bottom:6px;"></textarea>
+            <button id="btn-summary" class="primary" disabled>Re-summarize</button>
+            <span id="summary-status" class="status">transcribe first</span>
           </div>
           <div id="summary-results" class="results"></div>
         </section>
@@ -131,18 +140,6 @@
             <span id="viral-status" class="status">ready</span>
           </div>
           <div id="viral-results" class="results"></div>
-        </section>
-
-        <!-- ───────── Blog Article view ───────── -->
-        <section class="feature-view" data-view="blog-article">
-          <h2>Blog Article</h2>
-          <p class="hint">Structured article from transcript with headings and prose.</p>
-          <div class="actions">
-            <button id="btn-blog" class="primary">Generate article</button>
-            <button id="btn-blog-copy" class="ghost">Copy markdown</button>
-            <span id="blog-status" class="status">ready</span>
-          </div>
-          <div id="blog-results" class="results"></div>
         </section>
 
         <!-- ───────── Settings view ───────── -->

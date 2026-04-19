@@ -3,8 +3,6 @@ resolver = "2"
 members = [
     ".",
     "crates/creator-core",
-    "crates/silence-kit",
-    "crates/nle-kit",
     "crates/ai-kit",
     "crates/media-kit",
     "crates/transcription-kit",
@@ -12,7 +10,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["phucnt"]
 license = "MIT"
@@ -43,7 +41,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Cross-platform creator video utilities: transcription, silence detection, auto-cut, AI summaries, NLE export"
+description = "Cross-platform creator video utilities: transcription, translation, summaries, chapters, YT pack, viral clips"
 
 [lib]
 name = "my_media_kit_lib"
@@ -55,7 +53,6 @@ tauri-build = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true }
 creator-core = { path = "crates/creator-core" }
-silence-kit = { path = "crates/silence-kit" }
 ai-kit = { path = "crates/ai-kit" }
 media-kit = { path = "crates/media-kit" }
 transcription-kit = { path = "crates/transcription-kit" }
@@ -75,8 +72,6 @@ tauri-plugin-updater = "2"
 
 # Monorepo crates
 creator-core = { path = "crates/creator-core" }
-silence-kit = { path = "crates/silence-kit" }
-nle-kit = { path = "crates/nle-kit" }
 ai-kit = { path = "crates/ai-kit" }
 media-kit = { path = "crates/media-kit" }
 transcription-kit = { path = "crates/transcription-kit" }

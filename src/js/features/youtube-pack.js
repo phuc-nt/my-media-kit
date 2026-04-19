@@ -1,9 +1,8 @@
 // YouTube Content Pack — title suggestions, description, SEO tags.
 
-import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
+import { getSource, getAiConfig, getSummary, subscribe, markOutputDone } from "../source-store.js";
 import {
   deriveOutputPath,
-  ensureAiReady,
   escapeHtml,
   renderErrorBox,
   requireSource,
@@ -27,12 +26,12 @@ export function initYouTubePackView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language, mode } = getAiConfig();
-    if (!await ensureAiReady(mode, status)) return;
-
-    setStatus(status, "generating…");
-    results.innerHTML = "";
+    btn.disabled = true;
     lastPack = null;
+
+    const { provider, model, language } = getAiConfig();
+    setStatus(status, "generating YT pack…", "running");
+    results.innerHTML = "";
 
     try {
       const out = await invoke("content_youtube_pack", {
@@ -41,6 +40,7 @@ export function initYouTubePackView() {
           model,
           segments: source.transcript.segments,
           language,
+          summaryHint: getSummary()?.text ?? null,
         },
       });
       lastPack = out;
@@ -58,6 +58,8 @@ export function initYouTubePackView() {
       console.error(e);
       renderErrorBox(results, String(e));
       setStatus(status, "failed", "err");
+    } finally {
+      btn.disabled = false;
     }
   });
 
@@ -75,10 +77,28 @@ export function initYouTubePackView() {
     }
   });
 
-  subscribe((state) => {
-    if (!state.path || !state.transcript) {
-      results.innerHTML = `<p class="hint">transcribe a source first, then generate the pack</p>`;
+  subscribe(async (state) => {
+    const { mode } = getAiConfig();
+    const aiOk = mode === "cloud" || state.aiReady === true;
+    const hasTranscript = !!(state.path && state.transcript);
+    btn.disabled = !hasTranscript || !aiOk;
+    copyBtn.disabled = !hasTranscript;
+    if (!hasTranscript) {
+      results.innerHTML = state.path
+        ? `<p class="hint">run <strong>Transcribe</strong> first — YT Pack needs a transcript</p>`
+        : `<p class="hint">select a source file, then transcribe it</p>`;
       lastPack = null;
+      return;
+    }
+    if (!lastPack && state.outputStatus?.["youtube-pack"]) {
+      try {
+        const raw = await invoke("read_output_file", { sourcePath: state.path, filename: "youtube-pack.json" });
+        if (raw) {
+          lastPack = JSON.parse(raw);
+          renderPack(lastPack, results);
+          setStatus(status, `${lastPack.titles.length} titles · ${lastPack.tags.length} tags (cached)`, "ok");
+        }
+      } catch (_) {}
     }
   });
 }

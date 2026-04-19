@@ -21,7 +21,6 @@ const OUTPUT_FILES: &[(&str, &str)] = &[
     ("chapters.json", "chapters"),
     ("youtube-pack.json", "youtube-pack"),
     ("viral-clips.json", "viral-clips"),
-    ("blog.md", "blog"),
 ];
 
 /// Prefix-matched outputs (translations can be any language).
@@ -113,6 +112,25 @@ pub async fn list_output_files(source_path: String) -> Result<Vec<OutputFile>, S
     }
     files.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(files)
+}
+
+/// Read an output file by name from the source's `{stem}_output/` folder.
+/// Returns the raw string content or None if the file doesn't exist.
+/// Used to auto-load cached feature results (chapters.json, summary.md, etc.)
+/// when the user revisits a tab.
+#[command]
+pub async fn read_output_file(
+    source_path: String,
+    filename: String,
+) -> Result<Option<String>, String> {
+    let source = PathBuf::from(&source_path);
+    let path = output_dir_for(&source).join(&filename);
+    if !path.exists() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(&path)
+        .map(Some)
+        .map_err(|e| format!("read {}: {e}", path.display()))
 }
 
 /// Load and parse a transcript.srt from the output folder.

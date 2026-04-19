@@ -10,11 +10,12 @@ const state = {
   probe: null,
   outputDir: "",           // "{stem}_output/" path created by Rust
   outputStatus: {},        // { transcript: true, translate: true, ... }
+  aiReady: true,           // null=checking, true=ready, false=failed; cloud mode always true
 };
 
 // "local" = MLX (Apple Silicon), "cloud" = OpenAI
 const aiConfig = {
-  mode: "local",
+  mode: "cloud",
   language: "Vietnamese",
 };
 
@@ -48,7 +49,7 @@ export function setSourcePath(path) {
 
 export function setSummary(summary) {
   state.summary = summary ? { ...summary } : null;
-  // No notify() — summary is background context, not a view-visible state change.
+  notify();
 }
 
 export function getSummary() { return state.summary; }
@@ -85,8 +86,19 @@ export function getAiConfig() {
   return { mode: aiConfig.mode, provider, model, language: aiConfig.language };
 }
 
+export function setAiReady(ready) {
+  state.aiReady = ready;
+  notify();
+}
+
 export function setAiConfig(updates) {
+  const prevMode = aiConfig.mode;
   Object.assign(aiConfig, updates);
+  // Mode switch: cloud is always ready; local re-triggers check (source-manager handles it)
+  if (updates.mode !== undefined && updates.mode !== prevMode) {
+    state.aiReady = updates.mode === "cloud" ? true : null;
+    notify();
+  }
 }
 
 export function subscribe(fn) {

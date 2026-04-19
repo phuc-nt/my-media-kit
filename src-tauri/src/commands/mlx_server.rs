@@ -22,14 +22,24 @@ const STARTUP_TIMEOUT_SECS: u64 = 1800; // allow up to 30 min for first-run down
 
 /// Check if mlx_lm.server is listening. Uses a raw TCP connect so we don't
 /// need reqwest in the main crate — lighter and plenty fast enough.
+/// 2-second timeout: 500ms was too aggressive and produced false negatives
+/// on busy systems (server up but accept syscall delayed by other I/O).
 async fn is_server_ready() -> bool {
     tokio::time::timeout(
-        Duration::from_millis(500),
+        Duration::from_secs(2),
         tokio::net::TcpStream::connect(MLX_SERVER_ADDR),
     )
     .await
     .map(|r| r.is_ok())
     .unwrap_or(false)
+}
+
+/// Cheap pure-check command: returns true if the mlx_lm.server is already
+/// reachable. Frontend uses this to skip the expensive ensure flow when the
+/// server is already up — avoids event-listener registration races.
+#[command]
+pub async fn mlx_server_is_ready() -> bool {
+    is_server_ready().await
 }
 
 /// Ensure `mlx_lm.server` is running with the configured model.
@@ -41,7 +51,9 @@ pub async fn ensure_mlx_lm_server(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    if is_server_ready().await {
+    // Double-check: a single TCP timeout can be a false negative on busy
+    // systems. Retry once before deciding to spawn a fresh process.
+    if is_server_ready().await || is_server_ready().await {
         let _ = app.emit(MLX_SERVER_EVENT, json!({"status": "ready"}));
         return Ok(());
     }

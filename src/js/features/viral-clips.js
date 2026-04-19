@@ -1,9 +1,8 @@
 // Viral Clips — find the best short-form moments for Shorts/Reels/TikTok.
 
-import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
+import { getSource, getAiConfig, getSummary, subscribe, markOutputDone } from "../source-store.js";
 import {
   deriveOutputPath,
-  ensureAiReady,
   escapeHtml,
   formatMs,
   renderErrorBox,
@@ -25,10 +24,10 @@ export function initViralClipsView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language, mode } = getAiConfig();
-    if (!await ensureAiReady(mode, status)) return;
+    btn.disabled = true;
 
-    setStatus(status, "scanning for viral moments…");
+    const { provider, model, language } = getAiConfig();
+    setStatus(status, "scanning for viral moments…", "running");
     results.innerHTML = "";
 
     try {
@@ -38,6 +37,7 @@ export function initViralClipsView() {
           model,
           segments: source.transcript.segments,
           language,
+          summaryHint: getSummary()?.text ?? null,
         },
       });
       renderClips(out, results);
@@ -54,12 +54,33 @@ export function initViralClipsView() {
       console.error(e);
       renderErrorBox(results, String(e));
       setStatus(status, "failed", "err");
+    } finally {
+      btn.disabled = false;
     }
   });
 
-  subscribe((state) => {
-    if (!state.path || !state.transcript) {
-      results.innerHTML = `<p class="hint">transcribe a source first, then find viral clips</p>`;
+  let lastClips = null;
+  subscribe(async (state) => {
+    const { mode } = getAiConfig();
+    const aiOk = mode === "cloud" || state.aiReady === true;
+    const hasTranscript = !!(state.path && state.transcript);
+    btn.disabled = !hasTranscript || !aiOk;
+    if (!hasTranscript) {
+      results.innerHTML = state.path
+        ? `<p class="hint">run <strong>Transcribe</strong> first — Viral Clips needs a transcript</p>`
+        : `<p class="hint">select a source file, then transcribe it</p>`;
+      lastClips = null;
+      return;
+    }
+    if (!lastClips && state.outputStatus?.["viral-clips"]) {
+      try {
+        const raw = await invoke("read_output_file", { sourcePath: state.path, filename: "viral-clips.json" });
+        if (raw) {
+          lastClips = JSON.parse(raw);
+          renderClips(lastClips, results);
+          setStatus(status, `${lastClips.clips.length} clips (cached)`, "ok");
+        }
+      } catch (_) {}
     }
   });
 }

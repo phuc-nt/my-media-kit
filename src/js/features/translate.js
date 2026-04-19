@@ -4,7 +4,6 @@
 import { getSource, getAiConfig, getSummary, subscribe, markOutputDone } from "../source-store.js";
 import {
   deriveOutputPath,
-  ensureAiReady,
   escapeHtml,
   formatMs,
   renderErrorBox,
@@ -73,14 +72,14 @@ export function initTranslateView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language, mode } = getAiConfig();
-    if (!await ensureAiReady(mode, status)) return;
+    btn.disabled = true;
+    showProgress(0, 0);
+
+    const { provider, model, language } = getAiConfig();
     const target = language || "Vietnamese";
 
     setStatus(status, "translating…", "running");
-    btn.disabled = true;
     results.innerHTML = "";
-    showProgress(0, 0);
 
     try {
       const summary = getSummary();
@@ -124,8 +123,14 @@ export function initTranslateView() {
   });
 
   subscribe((state) => {
-    if (!state.path || !state.transcript) {
-      results.innerHTML = `<p class="hint">transcribe a source first, then translate</p>`;
+    const { mode } = getAiConfig();
+    const aiOk = mode === "cloud" || state.aiReady === true;
+    const hasTranscript = !!(state.path && state.transcript);
+    btn.disabled = !hasTranscript || !aiOk;
+    if (!hasTranscript) {
+      results.innerHTML = state.path
+        ? `<p class="hint">run <strong>Transcribe</strong> first — Translate needs a transcript</p>`
+        : `<p class="hint">select a source file, then transcribe it</p>`;
       lastResult = null;
     }
   });

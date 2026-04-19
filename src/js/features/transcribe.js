@@ -37,8 +37,24 @@ export function initTranscribeView() {
   const progressLabel = document.getElementById("transcribe-progress-label");
   const progressValue = document.getElementById("transcribe-progress-value");
 
+  const summaryBox  = document.getElementById("transcribe-summary");
+  const summaryBody = document.getElementById("transcribe-summary-body");
+
   let currentTranscript = null;
   let running = false;
+
+  function renderSummaryInline(summary) {
+    if (!summary?.text) {
+      summaryBox.hidden = true;
+      summaryBody.innerHTML = "";
+      return;
+    }
+    summaryBox.hidden = false;
+    summaryBody.innerHTML = `
+      <p class="hint">language: <code>${escapeHtml(summary.language)}</code>${summary.custom ? " · custom" : " · auto-generated"}</p>
+      <pre class="summary-text">${escapeHtml(summary.text)}</pre>
+    `;
+  }
 
   function getBackend() {
     const { mode } = getAiConfig();
@@ -69,6 +85,36 @@ export function initTranscribeView() {
     btnSaveClean.disabled = !(out?.segments?.length > 0);
   }
 
+  // Auto-summary as part of the Transcribe pipeline.
+  // Status updates flow into the Transcribe status bar; result renders in
+  // the inline Summary section below the transcript table.
+  async function runAutoSummary(segments, source) {
+    const { provider, model, language } = getAiConfig();
+    summaryBox.hidden = false;
+    summaryBody.innerHTML = `<p class="hint">generating summary…</p>`;
+    setStatus(status, "summarizing…", "running");
+    try {
+      setStatus(status, "summarizing…", "running");
+      const out = await invoke("content_summary", {
+        request: { provider, model, segments, language: language || "English" },
+      });
+      const summary = { ...out };
+      setSummary(summary);
+      renderSummaryInline(summary);
+
+      const summaryPath = deriveOutputPath(source.outputDir, "summary.md");
+      if (summaryPath && summary.text) {
+        await invoke("save_text_file", { path: summaryPath, content: summary.text }).catch(() => {});
+        markOutputDone("summary");
+      }
+      setStatus(status, `${segments.length} segments + summary`, "ok");
+    } catch (e) {
+      console.error("auto-summary failed:", e);
+      summaryBody.innerHTML = `<p class="hint" style="color:var(--err,#f88)">summary failed: ${escapeHtml(String(e))}</p>`;
+      setStatus(status, `${segments.length} segments (summary failed)`, "err");
+    }
+  }
+
   // MLX streams segment-level progress events.
   listen("mlx_whisper_progress", (event) => {
     if (!running || getBackend() !== "mlx") return;
@@ -87,7 +133,7 @@ export function initTranscribeView() {
     if (!requireSource(source, status)) return;
 
     results.innerHTML = "";
-    setSaveButtons(false);
+    btnSaveClean.disabled = true;
 
     const backend = getBackend();
     const model = BACKEND_MODEL[backend];
@@ -129,11 +175,9 @@ export function initTranscribeView() {
       ]);
       markOutputDone("transcript");
 
-      // Auto-generate summary in background for use as translation context hint.
-      const { provider, model: aiModel, language: aiLang } = getAiConfig();
-      invoke("content_summary", {
-        request: { provider, model: aiModel, segments: out.segments, language: aiLang || "English" },
-      }).then((summary) => setSummary(summary)).catch(() => {});
+      // Auto-generate summary as part of Transcribe — status + content shown here.
+      await runAutoSummary(out.segments, source);
+
     } catch (e) {
       console.error(e);
       renderErrorBox(results, String(e));
@@ -166,14 +210,24 @@ export function initTranscribeView() {
 
   subscribe(async (state) => {
     if (running) return;
+    // Always reflect summary state inline (even after re-opening the app).
+    renderSummaryInline(state.summary);
     if (!state.path) {
       results.innerHTML = `<p class="hint">no source selected</p>`;
       currentTranscript = null;
       btnSaveClean.disabled = true;
+      summaryBox.hidden = true;
       return;
     }
     if (state.transcript) {
       applyTranscript({ ...state.transcript, fromCache: true });
+      // Auto-load cached summary.md from disk if no summary in store yet.
+      if (!state.summary && state.outputStatus?.summary) {
+        try {
+          const text = await invoke("read_output_file", { sourcePath: state.path, filename: "summary.md" });
+          if (text) setSummary({ text, language: getAiConfig().language || "English", custom: false });
+        } catch (_) {}
+      }
       return;
     }
     try {

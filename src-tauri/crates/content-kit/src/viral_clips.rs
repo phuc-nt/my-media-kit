@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use ai_kit::{CompletionRequest, Provider};
 use creator_core::{AiProviderError, TranscriptionSegment};
 
-use crate::batch::TranscriptBatch;
+use crate::batch::{chunk_segments, TranscriptBatch};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViralClip {
@@ -23,7 +23,11 @@ pub struct ViralClipList {
     pub clips: Vec<ViralClip>,
 }
 
-pub fn system_prompt(language: &str) -> String {
+pub fn system_prompt(language: &str, summary_hint: Option<&str>) -> String {
+    let hint = summary_hint
+        .filter(|h| !h.trim().is_empty())
+        .map(|h| format!("\nVideo summary for context: {h}"))
+        .unwrap_or_default();
     format!(
         "You are a social media content strategist. Analyze the transcript \
          and find 3-5 segments that would make the best short-form clips \
@@ -35,7 +39,7 @@ pub fn system_prompt(language: &str) -> String {
          - A suggested social media caption\n\n\
          Prioritize: strong hooks, emotional moments, surprising revelations, \
          standalone insights that work without full context.\n\n\
-         Respond in {language}."
+         Respond in {language}.{hint}"
     )
 }
 
@@ -94,6 +98,7 @@ pub trait ViralClipRunner {
         segments: &[TranscriptionSegment],
         language: &str,
         model: &str,
+        summary_hint: Option<&str>,
     ) -> Result<ViralClipList, AiProviderError>;
 }
 
@@ -108,15 +113,18 @@ impl<'a> ViralClipRunner for ProviderViralClipRunner<'a> {
         segments: &[TranscriptionSegment],
         language: &str,
         model: &str,
+        summary_hint: Option<&str>,
     ) -> Result<ViralClipList, AiProviderError> {
-        let batch = TranscriptBatch {
+        // Cap at 600s — enough to find clip candidates without overwhelming the model.
+        let batches = chunk_segments(segments, 600.0);
+        let batch = batches.into_iter().next().unwrap_or_else(|| TranscriptBatch {
             batch_index: 0,
             first_segment_index: 0,
             segments: segments.to_vec(),
-        };
+        });
         let req = CompletionRequest::structured(
             model,
-            system_prompt(language),
+            system_prompt(language, summary_hint),
             user_prompt(&batch, language),
             "ViralClipList",
             response_schema(),

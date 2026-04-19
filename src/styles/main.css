@@ -76,6 +76,15 @@ body {
   font: inherit; font-size: 11px; width: 120px;
 }
 
+.ai-status {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  border: 1px solid var(--border); white-space: nowrap; flex-shrink: 0;
+  color: var(--text-dim); background: var(--bg-input);
+}
+.ai-status.ok  { color: var(--success); border-color: var(--success); }
+.ai-status.err { color: var(--danger);  border-color: var(--danger); }
+.ai-status.running { color: var(--accent); border-color: var(--accent); animation: status-pulse 1.4s ease-in-out infinite; }
+
 /* Source info panel (main area of source manager) */
 .sm-info {
   flex: 1; display: grid;
@@ -252,7 +261,41 @@ button.ghost.small { padding: 4px 10px; font-size: 11px; }
 .status { font-size: 12px; color: var(--text-dim); }
 .status.ok { color: var(--success); }
 .status.err { color: var(--danger); }
-.status.running { color: var(--accent-strong); font-weight: 600; }
+.status.running {
+  color: var(--accent-strong); font-weight: 700;
+  padding: 2px 8px; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-strong) 15%, transparent);
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+/* ── Transcribe split layout: transcript 2/3 + summary 1/3 ── */
+.transcribe-split {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+.transcribe-col-main, .transcribe-col-side { min-width: 0; }
+.transcribe-col-side {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  padding: 10px 14px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.transcribe-col-side h3 {
+  margin: 0 0 8px; font-size: 13px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.transcribe-col-main .results { margin-top: 0; max-height: 60vh; }
+@media (max-width: 1100px) {
+  .transcribe-split { grid-template-columns: 1fr; }
+}
 
 /* ── Results ──────────────────────────────────────── */
 .results {

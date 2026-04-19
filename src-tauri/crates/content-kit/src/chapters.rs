@@ -23,12 +23,16 @@ pub struct ChapterList {
     pub chapters: Vec<Chapter>,
 }
 
-pub fn system_prompt(language: &str) -> String {
+pub fn system_prompt(language: &str, summary_hint: Option<&str>) -> String {
+    let hint = summary_hint
+        .filter(|h| !h.trim().is_empty())
+        .map(|h| format!("\nVideo summary for context: {h}"))
+        .unwrap_or_default();
     format!(
         "You create YouTube chapter lists. Respond in {language}. First \
          chapter must start at 00:00. Keep titles short (under 8 words), \
          meaningful, and descriptive of the upcoming section. Aim for 5-10 \
-         chapters for a 10-minute video; scale with length."
+         chapters for a 10-minute video; scale with length.{hint}"
     )
 }
 
@@ -86,6 +90,7 @@ pub trait ChapterRunner {
         segments: &[TranscriptionSegment],
         language: &str,
         model: &str,
+        summary_hint: Option<&str>,
     ) -> Result<ChapterList, AiProviderError>;
 }
 
@@ -100,10 +105,11 @@ impl<'a> ChapterRunner for ProviderChapterRunner<'a> {
         segments: &[TranscriptionSegment],
         language: &str,
         model: &str,
+        summary_hint: Option<&str>,
     ) -> Result<ChapterList, AiProviderError> {
         let req = CompletionRequest::structured(
             model,
-            system_prompt(language),
+            system_prompt(language, summary_hint),
             user_prompt(segments, language),
             "ChapterList",
             response_schema(),

@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use ai_kit::{CompletionRequest, Provider};
 use creator_core::{AiProviderError, TranscriptionSegment};
 
-use crate::batch::TranscriptBatch;
+use crate::batch::{chunk_segments, TranscriptBatch};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YouTubePack {
@@ -18,7 +18,11 @@ pub struct YouTubePack {
     pub tags: Vec<String>,
 }
 
-pub fn system_prompt(language: &str) -> String {
+pub fn system_prompt(language: &str, summary_hint: Option<&str>) -> String {
+    let hint = summary_hint
+        .filter(|h| !h.trim().is_empty())
+        .map(|h| format!("\nVideo summary for context: {h}"))
+        .unwrap_or_default();
     format!(
         "You are a YouTube SEO expert. Given a video transcript, generate:\n\
          1. Five catchy title suggestions (hook-style, under 70 chars each)\n\
@@ -26,17 +30,24 @@ pub fn system_prompt(language: &str) -> String {
             call to action, 150-300 words)\n\
          3. 15-20 relevant tags/keywords for SEO\n\n\
          Respond in {language}. Base everything on the actual transcript \
-         content — never invent facts."
+         content — never invent facts.{hint}"
     )
 }
 
-pub fn user_prompt(batch: &TranscriptBatch, language: &str) -> String {
-    format!(
-        "Respond in {language}.\n\nTranscript (segments {}..{}):\n\n{}",
-        batch.first_segment_index,
-        batch.first_segment_index + batch.segments.len(),
-        batch.to_prompt_transcript()
-    )
+pub fn user_prompt(batch: Option<&TranscriptBatch>, summary_hint: Option<&str>, language: &str) -> String {
+    // Prefer summary (short, already condensed) over raw transcript.
+    if let Some(summary) = summary_hint.filter(|s| !s.trim().is_empty()) {
+        return format!("Respond in {language}.\n\nVideo summary:\n{summary}");
+    }
+    if let Some(batch) = batch {
+        return format!(
+            "Respond in {language}.\n\nTranscript (segments {}..{}):\n\n{}",
+            batch.first_segment_index,
+            batch.first_segment_index + batch.segments.len(),
+            batch.to_prompt_transcript()
+        );
+    }
+    format!("Respond in {language}.")
 }
 
 pub fn response_schema() -> Value {
@@ -75,6 +86,7 @@ pub trait YouTubePackRunner {
         segments: &[TranscriptionSegment],
         language: &str,
         model: &str,
+        summary_hint: Option<&str>,
     ) -> Result<YouTubePack, AiProviderError>;
 }
 
@@ -89,16 +101,24 @@ impl<'a> YouTubePackRunner for ProviderYouTubePackRunner<'a> {
         segments: &[TranscriptionSegment],
         language: &str,
         model: &str,
+        summary_hint: Option<&str>,
     ) -> Result<YouTubePack, AiProviderError> {
-        let batch = TranscriptBatch {
-            batch_index: 0,
-            first_segment_index: 0,
-            segments: segments.to_vec(),
+        // If summary available: use it as input (fast path, no need to send full transcript).
+        // Otherwise: cap at first 300s so the prompt stays manageable.
+        let batch_opt = if summary_hint.map(|s| !s.trim().is_empty()).unwrap_or(false) {
+            None
+        } else {
+            let batches = chunk_segments(segments, 300.0);
+            Some(batches.into_iter().next().unwrap_or_else(|| TranscriptBatch {
+                batch_index: 0,
+                first_segment_index: 0,
+                segments: segments.to_vec(),
+            }))
         };
         let req = CompletionRequest::structured(
             model,
-            system_prompt(language),
-            user_prompt(&batch, language),
+            system_prompt(language, summary_hint),
+            user_prompt(batch_opt.as_ref(), summary_hint, language),
             "YouTubePack",
             response_schema(),
         );

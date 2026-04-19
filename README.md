@@ -29,7 +29,6 @@ Drop a video file (or paste a YouTube URL) and get:
 | **Chapters** | YouTube-ready chapter markers (first pinned to 0:00) |
 | **YouTube Pack** | 5 title suggestions + full description + SEO tags in one shot |
 | **Viral Clips** | Best 15-60s moments for Shorts/Reels/TikTok with hooks and captions |
-| **Blog Article** | Structured article with headings and prose from your video |
 | **Clean Transcript** | Rule-based filler word removal (no AI needed) |
 
 ## How it works

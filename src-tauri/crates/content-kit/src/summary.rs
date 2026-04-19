@@ -55,12 +55,16 @@ pub fn user_prompt_for_batch(
     batch: &TranscriptBatch,
     style: SummaryStyle,
     language: &str,
+    custom_instruction: Option<&str>,
 ) -> String {
+    let instruction = custom_instruction
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| style.instruction());
     format!(
         "{}\n\nRespond in {language}.\n\n\
          Transcript batch {} (segments {}..{}). Each line is \
          `[start_ms - end_ms] text`:\n\n{}",
-        style.instruction(),
+        instruction,
         batch.batch_index,
         batch.first_segment_index,
         batch.first_segment_index + batch.segments.len(),
@@ -72,11 +76,15 @@ pub fn user_prompt_for_consolidation(
     partial_summaries: &[String],
     style: SummaryStyle,
     language: &str,
+    custom_instruction: Option<&str>,
 ) -> String {
+    let instruction = custom_instruction
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| style.instruction());
     format!(
         "Below are partial summaries of the same video. Produce a single \
          final summary in {language} using the style: {}.\n\n{}",
-        style.instruction(),
+        instruction,
         partial_summaries
             .iter()
             .enumerate()
@@ -104,6 +112,7 @@ pub trait SummaryRunner {
         language: &str,
         model: &str,
         max_batch_seconds: f64,
+        custom_instruction: Option<&str>,
     ) -> Result<SummaryResult, AiProviderError>;
 }
 
@@ -120,6 +129,7 @@ impl<'a> SummaryRunner for ProviderSummaryRunner<'a> {
         language: &str,
         model: &str,
         max_batch_seconds: f64,
+        custom_instruction: Option<&str>,
     ) -> Result<SummaryResult, AiProviderError> {
         let batches = chunk_segments(segments, max_batch_seconds);
         if batches.is_empty() {
@@ -136,7 +146,7 @@ impl<'a> SummaryRunner for ProviderSummaryRunner<'a> {
             let req = CompletionRequest::structured(
                 model,
                 system_prompt(language),
-                user_prompt_for_batch(batch, style, language),
+                user_prompt_for_batch(batch, style, language, custom_instruction),
                 "BatchSummary",
                 response_schema(),
             );
@@ -161,7 +171,7 @@ impl<'a> SummaryRunner for ProviderSummaryRunner<'a> {
         let req = CompletionRequest::structured(
             model,
             system_prompt(language),
-            user_prompt_for_consolidation(&partials, style, language),
+            user_prompt_for_consolidation(&partials, style, language, custom_instruction),
             "FinalSummary",
             response_schema(),
         );
@@ -240,7 +250,7 @@ mod tests {
         let runner = ProviderSummaryRunner { provider: &stub };
         let segments = vec![TranscriptionSegment::new(0, 5_000, "short transcript")];
         let result = runner
-            .run(&segments, SummaryStyle::Brief, "English", "claude-3", 60.0)
+            .run(&segments, SummaryStyle::Brief, "English", "claude-3", 60.0, None)
             .await
             .unwrap();
         assert_eq!(result.text, "batch summary");
@@ -263,7 +273,7 @@ mod tests {
             TranscriptionSegment::new(60_000, 120_000, "b"),
         ];
         let result = runner
-            .run(&segments, SummaryStyle::Brief, "English", "claude-3", 30.0)
+            .run(&segments, SummaryStyle::Brief, "English", "claude-3", 30.0, None)
             .await
             .unwrap();
         assert_eq!(result.text, "final");

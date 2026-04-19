@@ -190,7 +190,7 @@ Register in `AIServiceManager` init with runtime check. UI picker hides the opti
 - ADR-001 (SPM monorepo) → replaced by Cargo workspace under `src-tauri/`.
 - ADR-003 (WhisperKit SPM) → replaced by `mlx-whisper` sidecar (macOS) and `whisper-rs` behind a cargo feature flag (Windows/Linux).
 - ADR-004 (Swift Keychain) → replaced by the `keyring` crate (Apple Keychain / Windows Credential Manager / Linux Secret Service).
-- ADR-005 (SwiftUI kits) → replaced by 7 Cargo crates: `creator-core`, `silence-kit`, `media-kit`, `transcription-kit`, `ai-kit`, `content-kit`, `nle-kit`.
+- ADR-005 (SwiftUI kits) → replaced by 5 Cargo crates: `creator-core`, `media-kit`, `transcription-kit`, `ai-kit`, `content-kit`. (Earlier `silence-kit` + `nle-kit` removed when AutoCut was scoped out for v1.)
 - ADR-009 (Swift Testing) → replaced by Rust `#[test]` + `cargo test`.
 
 **Kept as-is:**

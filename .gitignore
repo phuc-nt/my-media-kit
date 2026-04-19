@@ -5,6 +5,7 @@ docs/reverse-engineering/
 
 # ── Large test media ─────────────────────────────────────────────────────────
 test-input/
+test-data/
 *.mp4
 *.mov
 *.mkv

@@ -5,7 +5,7 @@
 
 import {
   getSource, setSourcePath, setTranscript, setProbe,
-  subscribe, setAiConfig, setOutputDir, setOutputStatus,
+  subscribe, setAiConfig, setAiReady, getAiConfig, setOutputDir, setOutputStatus,
 } from "./source-store.js";
 
 const { invoke } = window.__TAURI__.core;
@@ -26,9 +26,44 @@ const BADGE_KEYS = [
   ["chapters", "Chapters"],
   ["youtube-pack", "YT Pack"],
   ["viral-clips", "Viral Clips"],
-  ["blog", "Blog"],
-  ["clean", "Clean SRT"],
 ];
+
+// ── AI engine check (runs once at startup, re-runs on mode switch to local) ─
+let aiCheckRunning = false;
+
+function updateAiStatus(el, text, kind) {
+  el.textContent = text;
+  el.className = "ai-status" + (kind ? " " + kind : "");
+}
+
+async function startAiEngineCheck(aiStatusEl) {
+  if (aiCheckRunning) return;
+  aiCheckRunning = true;
+  updateAiStatus(aiStatusEl, "checking AI engine…", "running");
+  setAiReady(null);
+  try {
+    if (await invoke("mlx_server_is_ready").catch(() => false)) {
+      setAiReady(true);
+      updateAiStatus(aiStatusEl, "AI engine ready", "ok");
+      return;
+    }
+    updateAiStatus(aiStatusEl, "starting AI engine (~9 GB model)…", "running");
+    invoke("ensure_mlx_lm_server").catch((e) => console.error("ensure_mlx_lm_server:", e));
+    for (let i = 0; i < 150; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      if (await invoke("mlx_server_is_ready").catch(() => false)) {
+        setAiReady(true);
+        updateAiStatus(aiStatusEl, "AI engine ready", "ok");
+        return;
+      }
+      if (i === 4) updateAiStatus(aiStatusEl, "downloading AI model (~9 GB, first run only)…", "running");
+    }
+    setAiReady(false);
+    updateAiStatus(aiStatusEl, "AI engine timed out — check mlx_lm is installed", "err");
+  } finally {
+    aiCheckRunning = false;
+  }
+}
 
 export function initSourceManager() {
   const input     = document.getElementById("source-path");
@@ -37,6 +72,7 @@ export function initSourceManager() {
   const clearBtn  = document.getElementById("btn-source-clear");
   const smEl      = document.getElementById("source-manager");
   const badgesEl  = document.getElementById("status-badges");
+  const aiStatusEl = document.getElementById("ai-engine-status");
 
   // ── YouTube download progress ────────────────────────────────────────
   const progressBox = document.createElement("div");
@@ -203,8 +239,34 @@ export function initSourceManager() {
   function syncAiConfig() {
     setAiConfig({ mode: aiModeSel.value, language: aiLangInput.value.trim() || "Vietnamese" });
   }
-  aiModeSel.addEventListener("change", syncAiConfig);
+
+  function triggerAiCheck() {
+    const { mode } = getAiConfig();
+    if (mode === "local") {
+      startAiEngineCheck(aiStatusEl);
+    } else {
+      setAiReady(true);
+      updateAiStatus(aiStatusEl, "cloud (OpenAI)", "ok");
+    }
+  }
+
+  aiModeSel.addEventListener("change", () => {
+    if (aiModeSel.value === "local") {
+      const ok = window.confirm(
+        "Switch to MLX (local) mode?\n\nThis will load a ~9 GB AI model on your machine. Only do this on Apple Silicon with enough RAM."
+      );
+      if (!ok) {
+        aiModeSel.value = "cloud";
+        return;
+      }
+    }
+    syncAiConfig();
+    triggerAiCheck();
+  });
   aiLangInput.addEventListener("change", syncAiConfig);
+
+  // Check AI engine at startup.
+  triggerAiCheck();
 
   // ── Status badges (reactive) ─────────────────────────────────────────
   function renderBadges(outputStatus) {
@@ -250,7 +312,7 @@ export function initSourceManager() {
   // ── Tab status dots ──────────────────────────────────────────────────
   const featureTabs = document.querySelectorAll(".feature-item[data-feature]");
   const transcriptFeatures = new Set([
-    "translate", "summary", "chapters", "youtube-pack", "viral-clips", "blog-article",
+    "translate", "summary", "chapters", "youtube-pack", "viral-clips",
   ]);
 
   subscribe((state) => {

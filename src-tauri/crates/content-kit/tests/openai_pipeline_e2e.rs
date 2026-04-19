@@ -177,7 +177,7 @@ async fn openai_all_use_cases() {
     println!("  {} segments", en_segs.len());
 
     let uc1_ch = ch_r.run(&en_segs, "English", LLM_MODEL).await.expect("UC1 chapters");
-    let uc1_sum = sum_r.run(&en_segs, SummaryStyle::Brief, "Vietnamese", LLM_MODEL, 60.0).await.expect("UC1 summary");
+    let uc1_sum = sum_r.run(&en_segs, SummaryStyle::Brief, "Vietnamese", LLM_MODEL, 60.0, None).await.expect("UC1 summary");
 
     println!("\n  ▶ CHAPTERS:");
     for ch in &uc1_ch.chapters {
@@ -216,7 +216,7 @@ async fn openai_all_use_cases() {
     println!("  {} segments, detected lang={jp_lang:?}", jp_segs.len());
 
     let uc3_sum = sum_r
-        .run(&jp_segs, SummaryStyle::KeyPoints, "Vietnamese", LLM_MODEL, 60.0)
+        .run(&jp_segs, SummaryStyle::KeyPoints, "Vietnamese", LLM_MODEL, 60.0, None)
         .await
         .expect("UC3 key points");
 
@@ -231,11 +231,11 @@ async fn openai_all_use_cases() {
     println!("  {} segments, detected lang={vi_lang:?}", vi_segs.len());
 
     let uc4_kp = sum_r
-        .run(&vi_segs, SummaryStyle::KeyPoints, "Vietnamese", LLM_MODEL, 60.0)
+        .run(&vi_segs, SummaryStyle::KeyPoints, "Vietnamese", LLM_MODEL, 60.0, None)
         .await
         .expect("UC4 key points");
     let uc4_ai = sum_r
-        .run(&vi_segs, SummaryStyle::ActionItems, "Vietnamese", LLM_MODEL, 60.0)
+        .run(&vi_segs, SummaryStyle::ActionItems, "Vietnamese", LLM_MODEL, 60.0, None)
         .await
         .expect("UC4 action items");
 

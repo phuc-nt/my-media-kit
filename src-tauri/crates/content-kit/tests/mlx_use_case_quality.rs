@@ -154,7 +154,7 @@ async fn use_case_quality_review() {
 
     let sum_runner = ProviderSummaryRunner { provider: &provider };
     let summary_brief = sum_runner
-        .run(&en_3min, SummaryStyle::Brief, "English", &model, 60.0)
+        .run(&en_3min, SummaryStyle::Brief, "English", &model, 60.0, None)
         .await
         .expect("UC1 summary");
 
@@ -207,7 +207,7 @@ async fn use_case_quality_review() {
     println!("  Input: EN TED first 3 min → summary output in Vietnamese");
 
     let digest_summary = sum_runner
-        .run(&en_3min, SummaryStyle::KeyPoints, "Vietnamese", &model, 60.0)
+        .run(&en_3min, SummaryStyle::KeyPoints, "Vietnamese", &model, 60.0, None)
         .await
         .expect("UC3 summary vi");
 
@@ -222,7 +222,7 @@ async fn use_case_quality_review() {
 
     let action_sum_runner = ProviderSummaryRunner { provider: &provider };
     let action_items = action_sum_runner
-        .run(&mov_segs, SummaryStyle::ActionItems, "Vietnamese", &model, 60.0)
+        .run(&mov_segs, SummaryStyle::ActionItems, "Vietnamese", &model, 60.0, None)
         .await
         .expect("UC4 action items");
 

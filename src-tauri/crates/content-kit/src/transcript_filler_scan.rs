@@ -9,7 +9,17 @@
 
 use creator_core::{FillerDetection, TranscriptionSegment};
 
-use crate::filler::{EN_FILLERS, VI_FILLERS};
+const EN_FILLERS: &[&str] = &[
+    "um", "uh", "er", "ah", "hmm", "like", "you know", "i mean", "basically",
+    "actually", "literally", "right", "so", "well", "kind of", "sort of",
+    "anyway", "obviously",
+];
+
+const VI_FILLERS: &[&str] = &[
+    "ờ", "à", "ừm", "ừ", "thì", "mà", "kiểu", "kiểu như", "đại khái",
+    "nói chung", "thực ra", "cơ bản là", "nói thật là", "ý là", "tức là",
+    "đúng không", "hiểu không", "biết không",
+];
 
 /// Strip leading/trailing punctuation and lowercase for matching.
 fn normalize(word: &str) -> String {

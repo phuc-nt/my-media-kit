@@ -1,10 +1,9 @@
 // Chapters view. Runs content_chapters, renders the list, has a one-click
 // copy button that formats the output for a YouTube video description.
 
-import { getSource, getAiConfig, subscribe, markOutputDone } from "../source-store.js";
+import { getSource, getAiConfig, getSummary, subscribe, markOutputDone } from "../source-store.js";
 import {
   deriveOutputPath,
-  ensureAiReady,
   escapeHtml,
   formatMs,
   renderErrorBox,
@@ -29,12 +28,12 @@ export function initChaptersView() {
     if (!requireSource(source, status)) return;
     if (!requireTranscript(source.transcript, status)) return;
 
-    const { provider, model, language, mode } = getAiConfig();
-    if (!await ensureAiReady(mode, status)) return;
-
-    setStatus(status, "generating chapters…");
-    results.innerHTML = "";
+    btn.disabled = true;
     lastChapters = null;
+
+    const { provider, model, language } = getAiConfig();
+    setStatus(status, "generating chapters…", "running");
+    results.innerHTML = "";
 
     try {
       const out = await invoke("content_chapters", {
@@ -43,6 +42,7 @@ export function initChaptersView() {
           model,
           segments: source.transcript.segments,
           language,
+          summaryHint: getSummary()?.text ?? null,
         },
       });
       lastChapters = out;
@@ -60,6 +60,8 @@ export function initChaptersView() {
       console.error(e);
       renderErrorBox(results, String(e));
       setStatus(status, "failed", "err");
+    } finally {
+      btn.disabled = false;
     }
   });
 
@@ -77,10 +79,29 @@ export function initChaptersView() {
     }
   });
 
-  subscribe((state) => {
-    if (!state.path || !state.transcript) {
-      results.innerHTML = `<p class="hint">transcribe a source first, then generate chapters</p>`;
+  subscribe(async (state) => {
+    const { mode } = getAiConfig();
+    const aiOk = mode === "cloud" || state.aiReady === true;
+    const hasTranscript = !!(state.path && state.transcript);
+    btn.disabled = !hasTranscript || !aiOk;
+    copyBtn.disabled = !hasTranscript;
+    if (!hasTranscript) {
+      results.innerHTML = state.path
+        ? `<p class="hint">run <strong>Transcribe</strong> first — Chapters needs a transcript</p>`
+        : `<p class="hint">select a source file, then transcribe it</p>`;
       lastChapters = null;
+      return;
+    }
+    // Auto-load cached chapters from disk if file exists.
+    if (!lastChapters && state.outputStatus?.chapters) {
+      try {
+        const raw = await invoke("read_output_file", { sourcePath: state.path, filename: "chapters.json" });
+        if (raw) {
+          lastChapters = JSON.parse(raw);
+          renderChapters(lastChapters, results);
+          setStatus(status, `${lastChapters.chapters.length} chapters (cached)`, "ok");
+        }
+      } catch (_) {}
     }
   });
 }
