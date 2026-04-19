@@ -13,13 +13,13 @@
 
 ## Tính năng nổi bật
 
-- **YouTube Downloader tích hợp** — paste link, app tự download bằng `yt-dlp` đóng gói sẵn. File lưu vào `~/Downloads/MyMediaKit/{title} [{id}].mp4`, không cần cài Python hay tool ngoài.
-- **Transcribe + Summary 1 cú click** — Whisper sinh transcript, AI tóm tắt ngay bên cạnh.
-- **Translate thông minh** — sliding context + summary hint giúp giữ nhất quán thuật ngữ qua nhiều batch.
-- **Chapters / YouTube Pack / Viral Clips** — tạo metadata chuẩn YouTube từ transcript.
+- **Tải video YouTube ngay trong app** — chỉ cần paste link, không phải tool ngoài.
+- **Transcribe + Summary 1 cú click** — sinh transcript và tóm tắt cùng lúc.
+- **Translate thông minh** — giữ nhất quán thuật ngữ xuyên suốt video dài.
+- **Chapters / YouTube Pack / Viral Clips** — sinh metadata chuẩn YouTube từ transcript.
 - **2 mode AI**:
-  - **Cloud (OpenAI)** — mặc định, chạy nhanh, chỉ cần API key.
-  - **MLX (local)** — chạy 100% offline trên Apple Silicon (cần cài thêm Python package).
+  - **Cloud (OpenAI)** — mặc định, nhanh, chỉ cần API key.
+  - **MLX (local)** — chạy 100% offline trên Apple Silicon.
 
 ---
 
