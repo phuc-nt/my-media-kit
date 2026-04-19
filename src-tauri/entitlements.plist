@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required by hardened runtime + notarization. The bundled `yt-dlp` is
+         a PyInstaller single-file binary that extracts an embedded
+         Python.framework to /tmp at runtime and dlopens it. macOS rejects
+         the dlopen with "different Team IDs" because the extracted
+         framework keeps yt-dlp's original signature, not ours. This
+         entitlement allows loading dynamic libraries signed by other
+         developers (still gated by notarization). -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- PyInstaller's bootloader needs to allocate writable+executable pages
+         to extract Python bytecode and load shared objects. Without this,
+         yt-dlp errors out before reaching dlopen. -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+</dict>
+</plist>
