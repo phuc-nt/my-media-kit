@@ -11,13 +11,48 @@
 
 ---
 
-## Tính năng nổi bật
+## Dùng để làm gì?
 
-- **Tải video YouTube ngay trong app** — chỉ cần paste link, không phải tool ngoài.
-- **Transcribe + Summary 1 cú click** — sinh transcript và tóm tắt cùng lúc.
-- **Translate thông minh** — giữ nhất quán thuật ngữ xuyên suốt video dài.
-- **Xuất SRT chuẩn** — file phụ đề dùng được ngay với mọi nền tảng: VLC, IINA, QuickTime, MPV, CapCut, Premiere, DaVinci Resolve, Final Cut, YouTube Studio… Kéo-thả là chạy, không cần convert.
-- **Chapters / YouTube Pack / Viral Clips** — sinh metadata chuẩn YouTube từ transcript.
+### 🎓 Xem bài giảng / phim / podcast chưa có phụ đề
+
+Ví dụ: bạn tìm thấy một talk hay trên YouTube nhưng chỉ có tiếng Anh hoặc Nhật, không có sub Việt.
+
+1. Paste link YouTube vào app → app tự download.
+2. Bấm **Transcribe** → 1–2 phút có transcript đầy đủ với timestamp.
+3. Bấm **Translate** → app dịch sang tiếng Việt, xuất ra file `.srt`.
+4. Mở file video bằng **VLC / IINA / QuickTime / MPV / CapCut**, kéo-thả file `.srt` vào → có phụ đề tiếng Việt khớp giây ngay lập tức.
+
+Cũng dùng được cho phim mua trên iTunes / Netflix download offline / file lecture trường gửi…
+
+### 🎬 Sản xuất nội dung video cho YouTube / TikTok / Reels
+
+Ví dụ: bạn vừa quay xong 1 video 30 phút, cần đẩy lên YouTube + cắt clip ngắn cho TikTok.
+
+1. Kéo-thả file video vào app.
+2. **Transcribe** xong → có sẵn:
+   - **Summary** để viết caption / mô tả.
+   - **Chapters** để paste vào description YouTube (auto-format chuẩn `MM:SS Tên chương`).
+   - **YouTube Pack** — 5 title gợi ý + description SEO + 15–20 tag.
+   - **Viral Clips** — gợi ý 3–5 đoạn 15–60 giây hay nhất kèm caption sẵn để cắt cho Shorts/Reels/TikTok.
+3. **Translate** sang ngôn ngữ khác → mở rộng audience quốc tế. SRT import thẳng vào **Premiere / DaVinci / Final Cut / CapCut** làm subtitle track.
+
+Tiết kiệm 1–2 giờ chỉnh sửa metadata + cắt clip cho mỗi video.
+
+### 📚 Học ngoại ngữ qua nội dung gốc
+
+1. Paste video tiếng nước ngoài (TED Talk, anime, drama Hàn…).
+2. Lấy transcript bản gốc + bản dịch song song → đọc đối chiếu.
+3. Mở video kèm SRT để vừa nghe vừa nhìn 2 ngôn ngữ.
+
+---
+
+## Tính năng
+
+- **Tải video YouTube** ngay trong app, paste link là xong.
+- **Transcribe** với word-level timestamp (Whisper).
+- **Translate** giữ nhất quán thuật ngữ xuyên suốt video dài.
+- **Summary / Chapters / YouTube Pack / Viral Clips** — sinh tự động từ transcript.
+- **Xuất SRT chuẩn** — dùng được với mọi player + video editor + YouTube Studio.
 - **2 mode AI**:
   - **Cloud (OpenAI)** — mặc định, nhanh, chỉ cần API key.
   - **MLX (local)** — chạy 100% offline trên Apple Silicon.
