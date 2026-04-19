@@ -198,9 +198,42 @@ impl MlxWhisperTranscriber {
             ));
         }
 
+        // Find the output JSON. mlx_whisper normally writes `{stem}.json` but
+        // some versions append the input basename or use a different layout —
+        // probe for any *.json in the tmp dir as a robust fallback.
         let json_path = tmp_dir.join(format!("{stem}.json"));
-        let body = std::fs::read_to_string(&json_path)
-            .map_err(|e| format!("read {}: {e}", json_path.display()))?;
+        let body = match std::fs::read_to_string(&json_path) {
+            Ok(b) => b,
+            Err(_) => {
+                let alt = std::fs::read_dir(&tmp_dir)
+                    .ok()
+                    .and_then(|d| {
+                        d.filter_map(|e| e.ok())
+                            .map(|e| e.path())
+                            .find(|p| p.extension().and_then(|s| s.to_str()) == Some("json"))
+                    });
+                match alt {
+                    Some(p) => std::fs::read_to_string(&p)
+                        .map_err(|e| format!("read {}: {e}", p.display()))?,
+                    None => {
+                        let listing = std::fs::read_dir(&tmp_dir)
+                            .map(|d| {
+                                d.filter_map(|e| e.ok())
+                                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            })
+                            .unwrap_or_else(|_| "<unreadable>".into());
+                        let _ = std::fs::remove_dir_all(&tmp_dir);
+                        return Err(format!(
+                            "mlx_whisper exited cleanly but produced no JSON output. \
+                             Files in tmp dir: [{listing}]. stderr: {}",
+                            stderr_body.trim()
+                        ));
+                    }
+                }
+            }
+        };
         let _ = std::fs::remove_dir_all(&tmp_dir);
 
         let sanitized = sanitize_python_json(&body);
