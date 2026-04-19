@@ -16,6 +16,7 @@
 - **Tải video YouTube ngay trong app** — chỉ cần paste link, không phải tool ngoài.
 - **Transcribe + Summary 1 cú click** — sinh transcript và tóm tắt cùng lúc.
 - **Translate thông minh** — giữ nhất quán thuật ngữ xuyên suốt video dài.
+- **Xuất SRT chuẩn** — file phụ đề dùng được ngay với mọi nền tảng: VLC, IINA, QuickTime, MPV, CapCut, Premiere, DaVinci Resolve, Final Cut, YouTube Studio… Kéo-thả là chạy, không cần convert.
 - **Chapters / YouTube Pack / Viral Clips** — sinh metadata chuẩn YouTube từ transcript.
 - **2 mode AI**:
   - **Cloud (OpenAI)** — mặc định, nhanh, chỉ cần API key.
